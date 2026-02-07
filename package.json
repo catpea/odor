@@ -1,21 +1,18 @@
 {
   "name": "odor",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Testing muriel by creating a blog builder",
   "main": "index.js",
   "scripts": {
     "save": "git add .; git commit -m 'Updated Release'; npm version patch; npm publish; git push --follow-tags;"
   },
   "keywords": [],
-
   "type": "module",
   "dependencies": {
     "marked": "^17.0.1",
     "muriel": "^1.0.5",
     "sharp": "^0.34.5"
   },
-
-
   "author": "catpea (https://github.com/catpea)",
   "license": "MIT",
   "repository": {
@@ -30,5 +27,4 @@
     "type": "github",
     "url": "https://github.com/sponsors/catpea"
   }
-
 }
