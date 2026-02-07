@@ -3,6 +3,9 @@
   "version": "1.0.1",
   "description": "Testing muriel by creating a blog builder",
   "main": "index.js",
+  "bin": {
+      "odor": "index.js"
+  },
   "scripts": {
     "save": "git add .; git commit -m 'Updated Release'; npm version patch; npm publish; git push --follow-tags;"
   },

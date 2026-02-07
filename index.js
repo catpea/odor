@@ -1,5 +1,7 @@
+#!/usr/bin/env node
+
 // Blog Builder using Muriel Filtergraph Engine
-import { flow } from '../../index.js';
+import { flow } from 'muriel';
 import fs from 'node:fs';
 import path from 'node:path';
 
