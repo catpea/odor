@@ -38,7 +38,7 @@ setup(baseDir, profile);
 // Manifest
 // ─────────────────────────────────────────────
 
-const manifestPath = path.join(resolvePath(profile.dest), '.muriel-manifest.json');
+const manifestPath = path.join(resolvePath(profile.dest), '.odor-manifest.json');
 const manifest = await loadManifest(manifestPath);
 
 const configHash = computeConfigHash(profile);
