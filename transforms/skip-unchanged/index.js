@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { resolvePath, manifestUpdates, hashFileContent } from '../../lib.js';
 
-export default function skipUnchanged(manifest) {
+export default function skipUnchanged({ fastModificationCheck = true, manifest }) {
 
   return async (send, packet) => {
 
@@ -62,7 +62,7 @@ export default function skipUnchanged(manifest) {
       }
     }
 
-    if (allMtimeMatch) {
+    if (fastModificationCheck && allMtimeMatch) {
       // All mtime+size match — skip (fastest path, zero hashing)
       manifestUpdates.set(postId, { fingerprint: entry, results: entry.results });
       console.log(`  [skip] ${postId}: unchanged (mtime)`);

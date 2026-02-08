@@ -61,7 +61,7 @@ console.log(`──────────────────────�
 
 const blog = flow([
 
-  [ postScanner({ src: profile.src }, profile.debug), skipUnchanged(manifest), 'post' ],
+  [ postScanner({ src: profile.src }, profile.debug), skipUnchanged({...profile.skip, manifest}), 'post' ],
 
   ['post',
 

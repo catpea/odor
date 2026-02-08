@@ -20,6 +20,9 @@
 
   },
 
+  "skip":{
+    "fastModificationCheck": false,
+  },
 
   "pagerizer": {
     "pp": 24,
