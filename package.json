@@ -1,6 +1,6 @@
 {
   "name": "odor",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Processes thousands of posts with parallel encoding, incremental builds, and atomic writes!",
   "main": "index.js",
   "bin": {
