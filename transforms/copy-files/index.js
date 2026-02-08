@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readdir, mkdir } from 'node:fs/promises';
-import { resolvePath, atomicCopyFile } from '../../lib.js';
+import { resolvePath, interpolatePath, atomicCopyFile } from '../../lib.js';
 
 export default function copyFiles() {
   return async (send, packet) => {
@@ -11,6 +11,7 @@ export default function copyFiles() {
     }
 
     const { files, guid, postId, profile } = packet;
+    const vars = { ...packet, ...packet.postData };
 
     if (!fs.existsSync(files.filesDir)) {
       send({ ...packet, filesResult: { skipped: true, reason: 'no files dir' } });
@@ -26,7 +27,7 @@ export default function copyFiles() {
         return;
       }
 
-      const destDir = resolvePath(`${profile.dest}/permalink/${guid}/files`);
+      const destDir = resolvePath(interpolatePath(`${profile.dest}/permalink/${guid}/files`, vars));
       await mkdir(destDir, { recursive: true });
 
       let copiedCount = 0;

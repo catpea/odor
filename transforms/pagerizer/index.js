@@ -1,5 +1,5 @@
 import { mkdir } from 'node:fs/promises';
-import { resolvePath, processedPosts, renderPostCard, chunk, buildPager, atomicWriteFile } from '../../lib.js';
+import { resolvePath, interpolatePath, processedPosts, renderPostCard, chunk, buildPager, atomicWriteFile } from '../../lib.js';
 
 export default function pagerizer({ pp = 24 } = {}) {
   let expectedTotal = null;
@@ -25,7 +25,7 @@ export default function pagerizer({ pp = 24 } = {}) {
       if (chunks.length === 0) chunks.push([]);
 
       const totalPages = chunks.length;
-      const destDir = resolvePath(profile.pagerizer.dest);
+      const destDir = resolvePath(interpolatePath(profile.pagerizer.dest, { profile }));
       await mkdir(destDir, { recursive: true });
 
       for (let i = 0; i < chunks.length; i++) {

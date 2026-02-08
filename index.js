@@ -5,7 +5,7 @@ import { flow } from 'muriel';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { setup, resolvePath, processedPosts, manifestUpdates, loadManifest, saveManifest, computeConfigHash, requestShutdown } from './lib.js';
+import { setup, resolvePath, interpolatePath, processedPosts, manifestUpdates, loadManifest, saveManifest, computeConfigHash, requestShutdown } from './lib.js';
 
 import postScanner   from './transforms/post-scanner/index.js';
 import skipUnchanged from './transforms/skip-unchanged/index.js';
@@ -41,7 +41,7 @@ setup(baseDir, profile);
 // Manifest
 // ─────────────────────────────────────────────
 
-const manifestPath = path.join(resolvePath(profile.dest), '.odor-manifest.json');
+const manifestPath = path.join(resolvePath(interpolatePath(profile.dest, { profile })), '.odor-manifest.json');
 const manifest = await loadManifest(manifestPath);
 
 const configHash = computeConfigHash(profile);
@@ -67,7 +67,7 @@ console.log(`──────────────────────�
 
 const blog = flow([
 
-  [ postScanner({ src: profile.src }, profile.debug), skipUnchanged({...profile.skip, manifest}), 'post' ],
+  [ postScanner({ src: profile.src, profile }, profile.debug), skipUnchanged({...profile.skip, manifest}), 'post' ],
 
   ['post',
 
@@ -88,10 +88,11 @@ const blog = flow([
     [
       homepage(profile.pagerizer),
       pagerizer(profile.pagerizer),
-      rssFeed()
+      rssFeed(),
+      playlist(profile.playlist)
     ],
 
-    useTheme({ ...profile.theme, dest: profile.dest }),
+    useTheme({ ...profile.theme, dest: profile.dest, profile }),
   'finished'],
 
 ], { context: { profile } });

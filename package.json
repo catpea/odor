@@ -4,7 +4,8 @@
   "description": "Processes thousands of posts with parallel encoding, incremental builds, and atomic writes!",
   "main": "index.js",
   "bin": {
-    "odor": "index.js"
+    "odor": "index.js",
+    "odor-complaint": "complain.js"
   },
   "scripts": {
     "save": "git add .; git commit -m 'Updated Release'; npm version patch; npm publish; git push --follow-tags;"

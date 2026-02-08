@@ -61,7 +61,7 @@ export default function processCover(config, debug) {
         await encodingSemaphore.acquire();
         try {
           let pipeline = sharp(files.cover)
-            .resize(width, height, { kernel: sharp.kernel.mitchell, fit: 'inside' })
+            .resize(width, height, { kernel: sharp.kernel.mitchell, fit: 'cover' })
             .avif({ quality, effort });
           if (Object.keys(exif).length > 0) {
             pipeline = pipeline.withExif(exif);

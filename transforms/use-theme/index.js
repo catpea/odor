@@ -1,10 +1,11 @@
 import path from 'node:path';
 import { readdir, mkdir } from 'node:fs/promises';
-import { resolvePath, atomicCopyFile } from '../../lib.js';
+import { resolvePath, interpolatePath, atomicCopyFile } from '../../lib.js';
 
 export default function useTheme(config) {
-  const themeSrc = resolvePath(config.src);
-  const destDir = resolvePath(config.dest);
+  const { profile } = config;
+  const themeSrc = resolvePath(interpolatePath(config.src, { profile }));
+  const destDir = resolvePath(interpolatePath(config.dest, { profile }));
 
   return async (send, packet) => {
     const allComplete = packet.branches?.every(b => b._complete);

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readFile, mkdir } from 'node:fs/promises';
 import { marked } from 'marked';
-import { resolvePath, atomicWriteFile } from '../../lib.js';
+import { resolvePath, interpolatePath, atomicWriteFile } from '../../lib.js';
 
 export default function processText() {
   return async (send, packet) => {
@@ -12,6 +12,7 @@ export default function processText() {
     }
 
     const { branches, guid, postId, postData, profile } = packet;
+    const vars = { ...packet, ...packet.postData };
 
     const coverBranch = branches?.find(b => b.coverResult);
     const audioBranch = branches?.find(b => b.audioResult);
@@ -29,7 +30,7 @@ export default function processText() {
       const markdown = await readFile(files.text, 'utf-8');
       const html = marked(markdown);
 
-      const destDir = resolvePath(`${profile.dest}/permalink/${guid}`);
+      const destDir = resolvePath(interpolatePath(`${profile.dest}/permalink/${guid}`, vars));
       await mkdir(destDir, { recursive: true });
 
       const destPath = path.join(destDir, 'index.html');

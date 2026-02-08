@@ -52,9 +52,11 @@
     }
   },
 
+
   "audio": {
     "dest": "dist/chapters/chapter-{chapter}/docs/{id}.mp3",
     "url": "https://catpea.github.io/chapter-{chapter}/{id}.mp3",
+
     "preset": "balanced",
     "id3": {
       "artist": "Cat Pea",
@@ -62,6 +64,12 @@
       "publisher": "catpea.com"
     }
   },
+
+  "playlist": {
+    "src": "dist/chapters/chapter-*/docs/*.mp3", // scan matching dirs
+    "dest": "dist/{profile}/docs/playlist.m3u", // create main playlist
+    "intermediate": true, // create playlists in the directories where mp3 files exist
+  }
 
   "text": {}
 }

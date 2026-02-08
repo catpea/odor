@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
-import { resolvePath, processedPosts, renderPostCard, buildPager, atomicWriteFile } from '../../lib.js';
+import { resolvePath, interpolatePath, processedPosts, renderPostCard, buildPager, atomicWriteFile } from '../../lib.js';
 
 export default function homepage({ pp = 12 } = {}) {
   let expectedTotal = null;
@@ -25,7 +25,7 @@ export default function homepage({ pp = 12 } = {}) {
       const archivePP = 24;
       const totalPages = Math.ceil(validPosts.length / archivePP) || 1;
 
-      const destDir = resolvePath(profile.pagerizer.dest);
+      const destDir = resolvePath(interpolatePath(profile.pagerizer.dest, { profile }));
       await mkdir(destDir, { recursive: true });
 
       const homePager = buildPager(totalPages, totalPages);

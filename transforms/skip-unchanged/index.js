@@ -2,17 +2,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
-import { resolvePath, manifestUpdates, hashFileContent } from '../../lib.js';
+import { resolvePath, interpolatePath, manifestUpdates, hashFileContent } from '../../lib.js';
 
 export default function skipUnchanged({ fastModificationCheck = true, manifest }) {
 
   return async (send, packet) => {
 
     const { postId, postDir, guid, profile } = packet;
+    const vars = { ...packet, ...packet.postData };
     const entry = manifest.posts[postId];
 
     // Check if output index.html exists
-    const outputPath = path.join(resolvePath(`${profile.dest}/permalink/${guid}`), 'index.html');
+    const outputPath = path.join(resolvePath(interpolatePath(`${profile.dest}/permalink/${guid}`, vars)), 'index.html');
     const outputExists = fs.existsSync(outputPath);
 
     if (!entry || !outputExists) {

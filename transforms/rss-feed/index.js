@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
-import { resolvePath, processedPosts, escapeXml, atomicWriteFile } from '../../lib.js';
+import { resolvePath, interpolatePath, processedPosts, escapeXml, atomicWriteFile } from '../../lib.js';
 
 export default function rssFeed() {
   let expectedTotal = null;
@@ -21,7 +21,7 @@ export default function rssFeed() {
         new Date(b.postData.date) - new Date(a.postData.date)
       );
 
-      const destPath = resolvePath(profile.feed.dest);
+      const destPath = resolvePath(interpolatePath(profile.feed.dest, { profile }));
       await mkdir(path.dirname(destPath), { recursive: true });
 
       const buildDate = new Date().toUTCString();
@@ -41,7 +41,7 @@ ${sortedPosts.slice(0, 50).map(post => `    <item>
       <guid isPermaLink="true">${profile.url}/permalink/${post.guid}/</guid>
       <pubDate>${new Date(post.postData.date).toUTCString()}</pubDate>
       ${post.postData.description ? `<description>${escapeXml(post.postData.description)}</description>` : ''}
-      ${post.coverUrl ? `<enclosure url="${profile.url}${post.coverUrl}" type="image/avif"/>` : ''}
+      ${post.coverUrl ? `<enclosure url="${post.coverUrl}" type="image/avif"/>` : ''}
     </item>`).join('\n')}
   </channel>
 </rss>`;

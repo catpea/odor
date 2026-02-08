@@ -1,11 +1,11 @@
 import path from 'node:path';
 import { readdir, readFile } from 'node:fs/promises';
-import { resolvePath } from '../../lib.js';
+import { resolvePath, interpolatePath } from '../../lib.js';
 
-export default function postScanner({src}, debug) {
+export default function postScanner({src, profile}, debug) {
 
   return async send => {
-    const srcDir = resolvePath(src);
+    const srcDir = resolvePath(interpolatePath(src, { profile }));
     console.log(`Scanning: ${srcDir}`);
 
     const entries = await readdir(srcDir, { withFileTypes: true });
