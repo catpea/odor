@@ -66,9 +66,9 @@
   },
 
   "playlist": {
-    "src": "dist/chapters/chapter-*/docs/*.mp3", // scan matching dirs
-    "dest": "dist/{profile}/docs/playlist.m3u", // create main playlist
-    "intermediate": true, // create playlists in the directories where mp3 files exist
+    "src": "dist/chapters/chapter-*/docs/*.mp3",
+    "dest": "dist/{profile}/docs/playlist.m3u",
+    "intermediate": true,
   }
 
   "text": {}

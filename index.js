@@ -19,6 +19,7 @@ import homepage      from './transforms/homepage/index.js';
 import pagerizer     from './transforms/pagerizer/index.js';
 import rssFeed       from './transforms/rss-feed/index.js';
 import useTheme      from './transforms/use-theme/index.js';
+import playlist      from './transforms/playlist/index.js';
 import gracefulShutdown from './transforms/graceful-shutdown/index.js';
 
 // ─────────────────────────────────────────────
