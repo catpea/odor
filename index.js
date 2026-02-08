@@ -32,7 +32,7 @@ if (!profilePath) {
 
 const profileFullPath = path.resolve(process.cwd(), profilePath);
 const profile = JSON.parse(fs.readFileSync(profileFullPath, 'utf-8'));
-const baseDir = path.resolve(path.dirname(profileFullPath), '..');
+const baseDir = path.resolve(path.dirname(profileFullPath));
 
 setup(baseDir, profile);
 
