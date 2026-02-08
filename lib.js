@@ -3,6 +3,10 @@ import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { writeFile, rename, copyFile, readFile, mkdir } from 'node:fs/promises';
 
+let _shutdownRequested = false;
+export function isShutdownRequested() { return _shutdownRequested; }
+export function requestShutdown() { _shutdownRequested = true; }
+
 let _baseDir;
 let _profile;
 

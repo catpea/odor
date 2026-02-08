@@ -5,7 +5,7 @@ import { flow } from 'muriel';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { setup, resolvePath, processedPosts, manifestUpdates, loadManifest, saveManifest, computeConfigHash } from './lib.js';
+import { setup, resolvePath, processedPosts, manifestUpdates, loadManifest, saveManifest, computeConfigHash, requestShutdown } from './lib.js';
 
 import postScanner   from './transforms/post-scanner/index.js';
 import skipUnchanged from './transforms/skip-unchanged/index.js';
@@ -19,6 +19,7 @@ import homepage      from './transforms/homepage/index.js';
 import pagerizer     from './transforms/pagerizer/index.js';
 import rssFeed       from './transforms/rss-feed/index.js';
 import useTheme      from './transforms/use-theme/index.js';
+import gracefulShutdown from './transforms/graceful-shutdown/index.js';
 
 // ─────────────────────────────────────────────
 // Configuration
@@ -54,6 +55,11 @@ manifest.configHash = configHash;
 // Filtergraph
 // ─────────────────────────────────────────────
 
+process.on('SIGINT', () => {
+  console.log('\nShutdown requested — finishing in-flight work...');
+  requestShutdown();
+});
+
 console.log(`\nMuriel Blog Builder`);
 console.log(`Profile: ${profile.profile}`);
 console.log(`Title: ${profile.title}`);
@@ -64,6 +70,8 @@ const blog = flow([
   [ postScanner({ src: profile.src }, profile.debug), skipUnchanged({...profile.skip, manifest}), 'post' ],
 
   ['post',
+
+    gracefulShutdown(),
 
     [
       processCover(profile.cover, profile.debug),
