@@ -17,7 +17,6 @@ export default function processAudio(config, debug) {
 
     const { files, postId } = packet;
     const vars = { ...packet, ...packet.postData };
-    vars.chapter ??= '0';
 
     if (!files.audio || !fs.existsSync(files.audio) || debug.skipAudio) {
       console.log(`  [audio] ${postId}: No audio file`);

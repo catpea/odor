@@ -29,9 +29,10 @@ export function chunk(array, size) {
 
 export function interpolatePath(str, obj) {
   return str.replace(/\{([^}]+)\}/g, (match, key) => {
-    if (!(key in obj)) return match;
+    if (!(key in obj)) throw new Error(`interpolatePath: unknown key "${key}"`);
     const val = obj[key];
-    if (val == null || typeof val === 'object' || typeof val === 'function') return match;
+    if (val == null) throw new Error(`interpolatePath: "${key}" is ${val}`);
+    if (typeof val === 'object' || typeof val === 'function') return match;
     return String(val);
   });
 }

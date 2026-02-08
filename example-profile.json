@@ -1,0 +1,64 @@
+{
+
+  "debug":{
+    "_processOnly": ["poem-2074",  "poem-2077",  "poem-2094",  "poem-2095",  "poem-2111"],
+    "_mostRecent": 3,
+    "_skipCovers": false,
+    "_skipAudio": true
+  },
+
+  "profile": "catpea.github.io",
+  "title": "Cat Pea",
+  "url": "https://catpea.com",
+
+  "src": "database/posts",
+  "dest": "dist/{profile}/docs",
+
+  "theme": {
+    "src": "themes/striped-dark-solarize",
+    "dest": "dist/{profile}/docs"
+
+  },
+
+
+  "pagerizer": {
+    "pp": 24,
+    "dest": "dist/{profile}/docs"
+  },
+
+  "feed":{
+    "dest": "dist/{profile}/docs/feed.xml"
+  },
+
+  "cover": {
+    "dest_original": "dist/{profile}/docs/permalink/{guid}/cover.avif",
+    "url_original": "/permalink/{guid}/cover.avif",
+
+    "dest": "dist/chapters/chapter-{chapter}/docs/{id}.avif",
+    "url": "https://catpea.github.io/chapter-{chapter}/{id}.avif",
+
+    "width": 1024,
+    "height": 1024,
+    "quality": 80,
+    "effort": 4,
+    "exif": {
+      "IFD0": {
+        "Copyright": "Cat Pea",
+        "ImageDescription": "Cat Pea Blog Post Cover"
+      }
+    }
+  },
+
+  "audio": {
+    "dest": "dist/chapters/chapter-{chapter}/docs/{id}.mp3",
+    "url": "https://catpea.github.io/chapter-{chapter}/{id}.mp3",
+    "preset": "balanced",
+    "id3": {
+      "artist": "Cat Pea",
+      "album_artist": "Cat Pea",
+      "publisher": "catpea.com"
+    }
+  },
+
+  "text": {}
+}

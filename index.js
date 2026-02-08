@@ -75,7 +75,16 @@ const blog = flow([
 
   'done'],
 
-  ['done', [homepage(profile.pagerizer), pagerizer(profile.pagerizer), rssFeed()], useTheme({ ...profile.theme, dest: profile.dest }), 'finished'],
+  ['done',
+
+    [
+      homepage(profile.pagerizer),
+      pagerizer(profile.pagerizer),
+      rssFeed()
+    ],
+
+    useTheme({ ...profile.theme, dest: profile.dest }),
+  'finished'],
 
 ], { context: { profile } });
 
