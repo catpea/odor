@@ -3,7 +3,7 @@ import path from 'node:path';
 import { mkdir, rename } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { resolvePath, mp3Presets, encodingSemaphore } from '../../lib.js';
+import { interpolatePath, resolvePath, mp3Presets, encodingSemaphore } from '../../lib.js';
 
 export default function processAudio(config, debug) {
   const preset = config.preset || 'balanced';
@@ -15,7 +15,9 @@ export default function processAudio(config, debug) {
       return;
     }
 
-    const { files, guid, postId, postData } = packet;
+    const { files, postId } = packet;
+    const vars = { ...packet, ...packet.postData };
+    vars.chapter ??= '0';
 
     if (!files.audio || !fs.existsSync(files.audio) || debug.skipAudio) {
       console.log(`  [audio] ${postId}: No audio file`);
@@ -23,11 +25,7 @@ export default function processAudio(config, debug) {
       return;
     }
 
-    const destPath = resolvePath(
-      config.dest
-        .replace('{chapter}', postData.chapter || '0')
-        .replace('{id}', postData.id)
-    );
+    const destPath = resolvePath(interpolatePath(config.dest, vars));
 
     // If output already exists, skip encoding (delete file to force rebuild)
     if (fs.existsSync(destPath)) {
@@ -38,7 +36,7 @@ export default function processAudio(config, debug) {
         audioResult: {
           success: true,
           path: destPath,
-          url: config.url.replace('{chapter}', postData.chapter || '0').replace('{id}', postData.id),
+          url: interpolatePath(config.url, vars),
           size: outputStats.size
         }
       });
@@ -90,7 +88,7 @@ export default function processAudio(config, debug) {
         audioResult: {
           success: true,
           path: destPath,
-          url: config.url.replace('{chapter}', postData.chapter || '0').replace('{id}', postData.id),
+          url: interpolatePath(config.url, vars),
           size: outputStats.size,
           reduction: parseFloat(reduction)
         }

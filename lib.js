@@ -27,6 +27,15 @@ export function chunk(array, size) {
   return chunks;
 }
 
+export function interpolatePath(str, obj) {
+  return str.replace(/\{([^}]+)\}/g, (match, key) => {
+    if (!(key in obj)) return match;
+    const val = obj[key];
+    if (val == null || typeof val === 'object' || typeof val === 'function') return match;
+    return String(val);
+  });
+}
+
 export function escapeXml(str) {
   if (!str) return '';
   return str

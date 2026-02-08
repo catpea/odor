@@ -2,11 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { mkdir, rename } from 'node:fs/promises';
 import sharp from 'sharp';
-import { resolvePath, encodingSemaphore, atomicCopyFile } from '../../lib.js';
+import { interpolatePath, resolvePath, encodingSemaphore, atomicCopyFile } from '../../lib.js';
 
 sharp.concurrency(1);
 
 export default function processCover(config, debug) {
+
   const { width = 1024, height = 1024, quality = 80, effort = 4, exif = {} } = config;
 
   return async (send, packet) => {
@@ -15,15 +16,23 @@ export default function processCover(config, debug) {
       return;
     }
 
-    const { files, guid, postId } = packet;
+    const { files, postId } = packet;
+    const vars = { ...packet, ...packet.postData };
 
-    if (!files.cover || !fs.existsSync(files.cover) || debug.skipCovers) {
+    if (debug.skipCovers) {
+      console.log(`  [cover] ${postId}: Skip cover image`);
+      send({ ...packet, coverResult: { skipped: true } });
+      return;
+    }
+
+    if (!files.cover || !fs.existsSync(files.cover)) {
       console.log(`  [cover] ${postId}: No cover image`);
       send({ ...packet, coverResult: { skipped: true } });
       return;
     }
 
-    const destPath = resolvePath(config.dest.replace('{guid}', guid));
+
+    const destPath = resolvePath(interpolatePath(config.dest, vars));
 
     // If output already exists, skip encoding (delete file to force rebuild)
     if (fs.existsSync(destPath)) {
@@ -34,7 +43,7 @@ export default function processCover(config, debug) {
         coverResult: {
           success: true,
           path: destPath,
-          url: config.url.replace('{guid}', guid),
+          url: interpolatePath(config.url, vars),
           size: stats.size
         }
       });
@@ -79,7 +88,7 @@ export default function processCover(config, debug) {
         coverResult: {
           success: true,
           path: destPath,
-          url: config.url.replace('{guid}', guid),
+          url: interpolatePath(config.url, vars),
           size: stats.size
         }
       });

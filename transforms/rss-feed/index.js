@@ -30,18 +30,18 @@ export default function rssFeed() {
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>${escapeXml(profile.title)}</title>
-    <link>https://catpea.com/</link>
+    <link>${profile.url}/</link>
     <description>${escapeXml(profile.title)} - Latest Posts</description>
     <language>en-us</language>
     <lastBuildDate>${buildDate}</lastBuildDate>
-    <atom:link href="https://catpea.com/feed.xml" rel="self" type="application/rss+xml"/>
+    <atom:link href="${profile.url}/feed.xml" rel="self" type="application/rss+xml"/>
 ${sortedPosts.slice(0, 50).map(post => `    <item>
       <title>${escapeXml(post.postData.title || post.postId)}</title>
-      <link>https://catpea.com/permalink/${post.guid}/</link>
-      <guid isPermaLink="true">https://catpea.com/permalink/${post.guid}/</guid>
+      <link>${profile.url}/permalink/${post.guid}/</link>
+      <guid isPermaLink="true">${profile.url}/permalink/${post.guid}/</guid>
       <pubDate>${new Date(post.postData.date).toUTCString()}</pubDate>
       ${post.postData.description ? `<description>${escapeXml(post.postData.description)}</description>` : ''}
-      ${post.coverUrl ? `<enclosure url="https://catpea.com${post.coverUrl}" type="image/avif"/>` : ''}
+      ${post.coverUrl ? `<enclosure url="${profile.url}${post.coverUrl}" type="image/avif"/>` : ''}
     </item>`).join('\n')}
   </channel>
 </rss>`;
