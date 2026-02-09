@@ -72,7 +72,6 @@ const encodingGate = gate(os.cpus().length);
 const blog = flow([
 
   [ postScanner({ src: profile.src, profile }, profile.debug), skipUnchanged({...profile.skip, manifest}), 'post' ],
-  // [ postWatcher({ src: profile.src }), awaitConfirmation('When you complete the post press [ENTER]'), 'post' ],
 
   ['post',
 
