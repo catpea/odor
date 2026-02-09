@@ -3,7 +3,7 @@ import path from 'node:path';
 import { mkdir, rename } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { interpolatePath, resolvePath, mp3Presets, encodingSemaphore } from '../../lib.js';
+import { interpolatePath, resolvePath, mp3Presets } from '../../lib.js';
 
 export default function processAudio(config, debug) {
   const preset = config.preset || 'balanced';
@@ -55,20 +55,30 @@ export default function processAudio(config, debug) {
       const tmpPath = destPath + '.tmp';
       const args = presetFn(files.audio, tmpPath);
 
-      // Append id3 metadata flags
+      // Append id3 metadata flags from profile config
+      const insertAt = args.indexOf('-f');
       for (const [key, value] of Object.entries(id3)) {
-        args.splice(args.indexOf('-f'), 0, '-metadata', `${key}=${value}`);
+        args.splice(insertAt, 0, '-metadata', `${key}=${value}`);
       }
 
-      await encodingSemaphore.acquire();
-      let code, stderr = '';
-      try {
-        const ffmpeg = spawn('ffmpeg', args);
-        ffmpeg.stderr.on('data', data => stderr += data.toString());
-        [code] = await once(ffmpeg, 'close');
-      } finally {
-        encodingSemaphore.release();
+      // Append id3 metadata derived from post.json
+      const { postData, profile } = packet;
+      const postMeta = {};
+      if (postData.title) postMeta.title = postData.title;
+      if (profile?.title && postData.chapter) postMeta.album = `${profile.title} Album #${postData.chapter}`;
+      if (postData.date) { const y = new Date(postData.date).getFullYear(); if (!isNaN(y)) postMeta.year = String(y); }
+      if (postData.id) { const parts = postData.id.split('-'); if (parts[1]) postMeta.track = parts[1]; }
+      if (postData.summary) postMeta.comment = postData.summary;
+
+      const insertAt2 = args.indexOf('-f');
+      for (const [key, value] of Object.entries(postMeta)) {
+        args.splice(insertAt2, 0, '-metadata', `${key}=${value}`);
       }
+
+      let code, stderr = '';
+      const ffmpeg = spawn('ffmpeg', args);
+      ffmpeg.stderr.on('data', data => stderr += data.toString());
+      [code] = await once(ffmpeg, 'close');
 
       if (code !== 0) {
         throw new Error(`FFmpeg exited with code ${code}: ${stderr}`);

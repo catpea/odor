@@ -155,9 +155,50 @@ Profile changes (detected via config hash) trigger a full rebuild. Already-encod
 
 All file writes use a write-to-tmp-then-rename pattern. If the process is killed mid-write, output files are either fully old or fully new, never corrupt. Stale `.tmp` files are overwritten on the next build.
 
+## Higher Order Functions
+
+Odor provides higher-order functions that wrap transforms at the flow level, keeping transforms pure and concurrency visible in the flow graph.
+
+### `gate(concurrency)`
+
+Creates a concurrency gate that limits how many packets can execute a transform simultaneously. Returns a wrapper function: call it with a transform to produce a gated version.
+
+```js
+import { gate } from './lib.js';
+
+const encodingGate = gate(os.cpus().length);
+
+const blog = flow([
+  [ postScanner(...), skipUnchanged(...), 'post' ],
+
+  ['post',
+    gracefulShutdown(),
+    [
+      encodingGate(processCover(config)),   // gated
+      encodingGate(processAudio(config)),   // gated — shares slots with cover
+      copyFiles()                           // ungated
+    ],
+    processText(), verifyPost(), collectPost(),
+  'done'],
+]);
+```
+
+Transforms wrapped by the same gate instance share a single semaphore. In the example above, `processCover` and `processAudio` run in parallel branches but compete for the same pool of `os.cpus().length` slots, preventing CPU oversubscription. `copyFiles` is I/O-bound and runs without a gate.
+
+A `gate(1)` serializes packets through a transform, useful when the transform holds a shared resource like a readline interface or a single-connection API:
+
+```js
+const apiGate = gate(1);
+
+const blog = flow([
+  [ postScanner(...), 'post' ],
+  ['post', apiGate(agentTask(config)), 'done'],
+]);
+```
+
 ## Concurrency
 
-Cover encoding (sharp) and audio encoding (ffmpeg) are gated by a shared semaphore limited to `os.cpus().length` concurrent operations. Sharp's internal thread pool is set to 1 (`sharp.concurrency(1)`) -- parallelism comes from the semaphore running multiple single-threaded sharp calls. FFmpeg uses `-threads 0` (auto).
+Cover encoding (sharp) and audio encoding (ffmpeg) are gated by a shared `gate(os.cpus().length)` at the flow level. Sharp's internal thread pool is set to 1 (`sharp.concurrency(1)`) -- parallelism comes from the gate running multiple single-threaded sharp calls. FFmpeg uses `-threads 0` (auto). The transforms themselves contain no concurrency logic.
 
 ## Audio Presets
 
@@ -172,6 +213,172 @@ Cover encoding (sharp) and audio encoding (ffmpeg) are gated by a shared semapho
 ## Theme
 
 The theme is a directory of static files copied to the dest root. At minimum it should contain a `style.css`. The HTML templates reference `/style.css` via a `<link>` tag.
+
+## Odor Complaint
+
+A sanity checker that scans your post database for common problems without building anything.
+
+```bash
+odor-complaint profile.json
+```
+
+The complaint desk runs each post through a series of checks and prints any issues found. It uses the same `src` and `debug` fields from your profile (including `mostRecent` and `processOnly` for scoping).
+
+### Checks
+
+| Check | What it catches |
+|-------|----------------|
+| **check-post-json** | Missing or empty required fields (`guid`, `id`, `title`, `date`, `chapter`), invalid dates, malformed UUIDs |
+| **check-cover-image** | Missing cover image, wrong aspect ratio (expects 1:1), resolution below 1024x1024 |
+| **check-too-many-files** | More than 3 files in the `files/` subdirectory |
+
+### Output
+
+```
+Odor Complaint Desk
+Profile: my_blog
+─────────────────────────────────────────────
+
+poem-0042:
+  [post.json] missing or empty "description"
+  [cover] 800x600 is not 1:1 (ratio: 1.33)
+poem-0099:
+  [cover] missing cover image
+
+─────────────────────────────────────────────
+3 complaint(s) in 2 of 150 posts
+─────────────────────────────────────────────
+```
+
+### Flow Graph
+
+```
+postScanner -> 'post'
+
+'post' -> gracefulShutdown -> checkPostJson -> checkCoverImage -> checkTooManyFiles -> 'done'
+```
+
+Supports CTRL-C for graceful shutdown -- in-flight checks complete, remaining posts are skipped.
+
+## Odor Agent
+
+An interactive CLI that sends each post to a local OpenAI-compatible API for tasks like spellcheck, grammar correction, tagging, and description generation.
+
+```bash
+odor-agent profile.json            # run all tasks
+odor-agent profile.json spellcheck  # run a single task
+```
+
+### Agent Configuration
+
+Add an `agent` section to your profile:
+
+```json
+{
+  "agent": {
+    "url": "http://localhost:11434/v1/chat/completions",
+    "model": "llama3",
+    "system": "You are a careful editor. Return only the corrected text.",
+    "yolo": false,
+    "tasks": [
+      {
+        "name": "spellcheck",
+        "prompt": "Fix spelling and grammar in the following text.",
+        "target": "text.md"
+      },
+      {
+        "name": "tags",
+        "prompt": "Choose relevant tags for this post. Return a JSON array of strings.",
+        "target": "post.json:tags"
+      },
+      {
+        "name": "description",
+        "prompt": "Write a one-sentence summary of this post.",
+        "target": "post.json:description"
+      }
+    ]
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `url` | OpenAI-compatible chat completions endpoint |
+| `model` | Model name to pass in the API request |
+| `system` | System prompt sent with every request |
+| `yolo` | When `true`, auto-accepts all passing results without prompting |
+| `tasks` | Array of tasks to run sequentially |
+
+### Target Format
+
+Each task specifies a `target` that controls where the result is written:
+
+| Target | Behavior |
+|--------|----------|
+| `"text.md"` | Whole-file replacement -- the API response overwrites `text.md` |
+| `"post.json:tags"` | JSON field update -- parses the response and sets the `tags` field in `post.json` |
+| `"post.json:description"` | JSON field update -- sets the `description` field in `post.json` |
+
+### Interactive Mode
+
+For each post, the agent displays the proposed change as a diff (for text targets) or old/new values (for JSON fields), then prompts:
+
+```
+  [spellcheck] poem-0001:
+  - Ths is a sentance with erors.
+  + This is a sentence with errors.
+  [1] Yes  [2] No  [3] Retry  [4] Abort >
+```
+
+| Choice | Effect |
+|--------|--------|
+| **Yes** | Accept the change and write it to disk |
+| **No** | Skip this post, move to the next |
+| **Retry** | Re-call the API for a fresh result |
+| **Abort** | Stop processing the current task entirely |
+
+### Yolo Mode
+
+Set `"yolo": true` to auto-accept all results that pass sanity checks. Failed checks are automatically skipped. No interactive prompts are shown.
+
+### Sanity Checks
+
+Every API response is validated before display:
+
+- **Empty response** -- rejected
+- **Garbled characters** -- control characters, mojibake, or U+FFFD detected -- rejected
+- **Length ratio** -- for text targets, the response must be 50%-200% of the original length (skipped for JSON field targets)
+
+### Task Sequencing
+
+Tasks run as separate flows sequentially. If spellcheck modifies `text.md`, the tagging task reads the corrected version on its fresh scan. Each task re-scans the post directory from disk.
+
+### Summary and Commit
+
+After all tasks complete, a summary is printed:
+
+```
+─────────────────────────────────────────────
+Agent Summary
+─────────────────────────────────────────────
+  spellcheck: 12 accepted, 3 rejected, 1 retries, 0 errors (15 posts)
+  tags: 15 accepted, 0 rejected, 0 retries, 0 errors (15 posts)
+─────────────────────────────────────────────
+
+Commit changes? (y/n) >
+```
+
+In interactive mode, if any changes were accepted, you are offered a git commit. In yolo mode the commit prompt is skipped.
+
+### Flow Graph
+
+```
+postScanner -> 'post'
+
+'post' -> gracefulShutdown -> apiGate(agentTask) -> 'done'
+```
+
+The agent task is wrapped in a `gate(1)` to serialize API calls and prevent readline prompts from interleaving.
 
 ## Dependencies
 

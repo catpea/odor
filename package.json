@@ -5,7 +5,8 @@
   "main": "index.js",
   "bin": {
     "odor": "index.js",
-    "odor-complaint": "complain.js"
+    "odor-complaint": "complain.js",
+    "odor-agent": "agent.js"
   },
   "scripts": {
     "save": "git add .; git commit -m 'Updated Release'; npm version patch; npm publish; git push --follow-tags;"

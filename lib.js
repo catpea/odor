@@ -1,5 +1,4 @@
 import path from 'node:path';
-import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { writeFile, rename, copyFile, readFile, mkdir } from 'node:fs/promises';
 
@@ -159,7 +158,19 @@ export function createSemaphore(max) {
   };
 }
 
-export const encodingSemaphore = createSemaphore(os.cpus().length);
+export function gate(concurrency) {
+  const sem = createSemaphore(concurrency);
+  return (transform) => {
+    return async (send, packet) => {
+      await sem.acquire();
+      try {
+        await transform(send, packet);
+      } finally {
+        sem.release();
+      }
+    };
+  };
+}
 
 // ─────────────────────────────────────────────
 // Manifest

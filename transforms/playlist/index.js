@@ -1,8 +1,6 @@
 import path from 'node:path';
-import { readdir, mkdir } from 'node:fs/promises';
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
-import { resolvePath, interpolatePath, atomicWriteFile } from '../../lib.js';
+import { mkdir } from 'node:fs/promises';
+import { resolvePath, interpolatePath, processedPosts, atomicWriteFile } from '../../lib.js';
 
 export default function playlist(config) {
   let expectedTotal = null;
@@ -17,32 +15,43 @@ export default function playlist(config) {
 
     if (expectedTotal !== null && collected.length >= expectedTotal) {
       const { profile } = packet;
-      const srcPattern = resolvePath(interpolatePath(config.src, { profile }));
-      const destPath = resolvePath(interpolatePath(config.dest, { profile }));
 
-      const mp3Files = await matchGlob(srcPattern);
+      const validPosts = processedPosts
+        .filter(p => p.valid && p._audioResult?.success)
+        .sort((a, b) => {
+          const chA = parseInt(a.postData.chapter) || 0;
+          const chB = parseInt(b.postData.chapter) || 0;
+          if (chA !== chB) return chA - chB;
+          return (a.postData.id || '').localeCompare(b.postData.id || '');
+        });
 
-      if (mp3Files.length === 0) {
-        console.log(`  [playlist] No MP3 files found`);
+      if (validPosts.length === 0) {
+        console.log(`  [playlist] No audio posts found`);
         send({ _complete: true, playlistGenerated: false });
         return;
       }
 
-      const entries = [];
-      for (const file of mp3Files) {
-        const info = await probeFile(file);
-        entries.push({ file, ...info });
-      }
+      // Build entries from processedPosts using post.json data
+      const entries = validPosts.map(p => {
+        const vars = { ...p, ...p.postData, profile };
+        return {
+          file: p._audioResult.path,
+          url: interpolatePath(config.url, vars),
+          title: p.postData.title || p.postId,
+          duration: 0,
+        };
+      });
 
-      // Main playlist
+      // Main playlist (uses url pattern)
+      const destPath = resolvePath(interpolatePath(config.dest, { profile }));
       await mkdir(path.dirname(destPath), { recursive: true });
-      await atomicWriteFile(destPath, buildM3U(entries, path.dirname(destPath)));
+      await atomicWriteFile(destPath, buildM3U(entries, 'url'));
 
-      // Intermediate playlists (one per directory containing mp3s)
+      // Intermediate playlists (uses filenames only)
       if (config.intermediate) {
         const byDir = groupByDirectory(entries);
         for (const [dir, dirEntries] of byDir) {
-          await atomicWriteFile(path.join(dir, 'playlist.m3u'), buildM3U(dirEntries, dir));
+          await atomicWriteFile(path.join(dir, 'playlist.m3u'), buildM3U(dirEntries, 'filename'));
         }
         console.log(`  [playlist] Generated main + ${byDir.size} intermediate playlist(s), ${entries.length} tracks`);
       } else {
@@ -57,77 +66,18 @@ export default function playlist(config) {
 }
 
 // ─────────────────────────────────────────────
-// Glob
-// ─────────────────────────────────────────────
-
-async function matchGlob(pattern) {
-  const parts = pattern.split(path.sep);
-  const fixedParts = [];
-  const globParts = [];
-  let hitWild = false;
-  for (const part of parts) {
-    if (!hitWild && !part.includes('*')) {
-      fixedParts.push(part);
-    } else {
-      hitWild = true;
-      globParts.push(part);
-    }
-  }
-
-  const baseDir = fixedParts.join(path.sep) || path.sep;
-  const globStr = globParts.join('/');
-  const regexStr = globStr
-    .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '[^/]*');
-  const regex = new RegExp('^' + regexStr + '$');
-
-  let entries;
-  try {
-    entries = await readdir(baseDir, { recursive: true });
-  } catch {
-    return [];
-  }
-
-  return entries
-    .filter(f => regex.test(f.split(path.sep).join('/')))
-    .map(f => path.join(baseDir, f))
-    .sort();
-}
-
-// ─────────────────────────────────────────────
-// Probe
-// ─────────────────────────────────────────────
-
-async function probeFile(filePath) {
-  try {
-    const proc = spawn('ffprobe', [
-      '-v', 'quiet', '-print_format', 'json', '-show_format', filePath
-    ]);
-    let stdout = '';
-    proc.stdout.on('data', d => stdout += d);
-    const [code] = await once(proc, 'close');
-
-    if (code !== 0) return { duration: 0, title: path.basename(filePath, '.mp3') };
-
-    const info = JSON.parse(stdout);
-    const duration = Math.round(parseFloat(info.format?.duration || '0'));
-    const title = info.format?.tags?.title || path.basename(filePath, '.mp3');
-    return { duration, title };
-  } catch {
-    return { duration: 0, title: path.basename(filePath, '.mp3') };
-  }
-}
-
-// ─────────────────────────────────────────────
 // M3U
 // ─────────────────────────────────────────────
 
-function buildM3U(entries, playlistDir) {
+function buildM3U(entries, mode) {
   let m3u = '#EXTM3U\n';
   for (const entry of entries) {
-    const rel = path.relative(playlistDir, entry.file);
     m3u += `\n#EXTINF:${entry.duration},${entry.title}\n`;
-    m3u += `${rel}\n`;
+    if (mode === 'url') {
+      m3u += `${entry.url}\n`;
+    } else {
+      m3u += `${path.basename(entry.file)}\n`;
+    }
   }
   return m3u;
 }

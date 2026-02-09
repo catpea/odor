@@ -1,7 +1,6 @@
 {
-
-  "debug":{
-    "_processOnly": ["poem-2074",  "poem-2077",  "poem-2094",  "poem-2095",  "poem-2111"],
+  "debug": {
+    "_processOnly": ["poem-2074", "poem-2077", "poem-2094", "poem-2095", "poem-2111"],
     "_mostRecent": 3,
     "_skipCovers": false,
     "_skipAudio": true
@@ -17,11 +16,10 @@
   "theme": {
     "src": "themes/striped-dark-solarize",
     "dest": "dist/{profile}/docs"
-
   },
 
-  "skip":{
-    "fastModificationCheck": false,
+  "skip": {
+    "fastModificationCheck": false
   },
 
   "pagerizer": {
@@ -29,7 +27,7 @@
     "dest": "dist/{profile}/docs"
   },
 
-  "feed":{
+  "feed": {
     "dest": "dist/{profile}/docs/feed.xml"
   },
 
@@ -52,7 +50,6 @@
     }
   },
 
-
   "audio": {
     "dest": "dist/chapters/chapter-{chapter}/docs/{id}.mp3",
     "url": "https://catpea.github.io/chapter-{chapter}/{id}.mp3",
@@ -61,15 +58,29 @@
     "id3": {
       "artist": "Cat Pea",
       "album_artist": "Cat Pea",
-      "publisher": "catpea.com"
+      "publisher": "catpea.com",
+      "genre": "Podcast"
     }
   },
 
   "playlist": {
     "src": "dist/chapters/chapter-*/docs/*.mp3",
+    "url": "https://catpea.github.io/chapter-{chapter}/{id}.mp3",
     "dest": "dist/{profile}/docs/playlist.m3u",
-    "intermediate": true,
-  }
+    "intermediate": true
+  },
 
-  "text": {}
+  "text": {},
+
+  "agent": {
+    "url": "http://localhost:11434/v1/chat/completions",
+    "model": "llama3",
+    "system": "You are a careful editor. Return only the corrected text.",
+    "yolo": false,
+    "tasks": [
+      { "name": "spellcheck", "prompt": "Fix spelling and grammar...", "target": "text.md" },
+      { "name": "tags", "prompt": "Choose tags...", "target": "post.json:tags" },
+      { "name": "description", "prompt": "Write a one-sentence summary...", "target": "post.json:description" }
+    ]
+  }
 }

@@ -5,7 +5,8 @@ import { flow } from 'muriel';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { setup, resolvePath, interpolatePath, processedPosts, manifestUpdates, loadManifest, saveManifest, computeConfigHash, requestShutdown } from './lib.js';
+import os from 'node:os';
+import { setup, resolvePath, interpolatePath, processedPosts, manifestUpdates, loadManifest, saveManifest, computeConfigHash, requestShutdown, gate } from './lib.js';
 
 import postScanner   from './transforms/post-scanner/index.js';
 import skipUnchanged from './transforms/skip-unchanged/index.js';
@@ -66,17 +67,20 @@ console.log(`Profile: ${profile.profile}`);
 console.log(`Title: ${profile.title}`);
 console.log(`─────────────────────────────────────────────\n`);
 
+const encodingGate = gate(os.cpus().length);
+
 const blog = flow([
 
   [ postScanner({ src: profile.src, profile }, profile.debug), skipUnchanged({...profile.skip, manifest}), 'post' ],
+  // [ postWatcher({ src: profile.src }), awaitConfirmation('When you complete the post press [ENTER]'), 'post' ],
 
   ['post',
 
     gracefulShutdown(),
 
     [
-      processCover(profile.cover, profile.debug),
-      processAudio(profile.audio, profile.debug),
+      encodingGate(processCover(profile.cover, profile.debug)),
+      encodingGate(processAudio(profile.audio, profile.debug)),
       copyFiles()
     ],
 

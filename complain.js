@@ -1,25 +1,18 @@
 #!/usr/bin/env node
 
-// Blog Builder using Muriel Filtergraph Engine
+// Sanity Checks for the Post Database
 import { flow } from 'muriel';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { setup, resolvePath, interpolatePath, processedPosts, manifestUpdates, loadManifest, saveManifest, computeConfigHash, requestShutdown } from './lib.js';
+import { setup, requestShutdown } from './lib.js';
 
-import postScanner   from './transforms/post-scanner/index.js';
-import skipUnchanged from './transforms/skip-unchanged/index.js';
-import processCover  from './transforms/process-cover/index.js';
-import processAudio  from './transforms/process-audio/index.js';
-import processText   from './transforms/process-text/index.js';
-import copyFiles     from './transforms/copy-files/index.js';
-import verifyPost    from './transforms/verify-post/index.js';
-import collectPost   from './transforms/collect-post/index.js';
-import homepage      from './transforms/homepage/index.js';
-import pagerizer     from './transforms/pagerizer/index.js';
-import rssFeed       from './transforms/rss-feed/index.js';
-import useTheme      from './transforms/use-theme/index.js';
+import postScanner      from './transforms/post-scanner/index.js';
 import gracefulShutdown from './transforms/graceful-shutdown/index.js';
+
+import checkPostJson    from './checks/check-post-json.js';
+import checkCoverImage  from './checks/check-cover-image.js';
+import checkTooManyFiles from './checks/check-too-many-files.js';
 
 // ─────────────────────────────────────────────
 // Configuration
@@ -27,7 +20,7 @@ import gracefulShutdown from './transforms/graceful-shutdown/index.js';
 
 const profilePath = process.argv[2];
 if (!profilePath) {
-  console.error('Usage: node blog.js <profile.json>');
+  console.error('Usage: odor-complaint <profile.json>');
   process.exit(1);
 }
 
@@ -38,44 +31,62 @@ const baseDir = path.resolve(path.dirname(profileFullPath));
 setup(baseDir, profile);
 
 // ─────────────────────────────────────────────
-// Manifest
-// ─────────────────────────────────────────────
-
-const manifestPath = path.join(resolvePath(interpolatePath(profile.dest, { profile })), '.odor-manifest.json');
-const manifest = await loadManifest(manifestPath);
-
-const configHash = computeConfigHash(profile);
-if (manifest.configHash && manifest.configHash !== configHash) {
-  console.log(`Profile changed — full rebuild`);
-  manifest.posts = {};
-}
-manifest.configHash = configHash;
-
-// ─────────────────────────────────────────────
-// Filtergraph
+// SIGINT
 // ─────────────────────────────────────────────
 
 process.on('SIGINT', () => {
-  console.log('\nShutdown requested — finishing in-flight work...');
+  console.log('\nShutdown requested — finishing in-flight checks...');
   requestShutdown();
 });
 
-console.log(`\nMuriel Blog Sanity Checks`);
+// ─────────────────────────────────────────────
+// Checks
+// ─────────────────────────────────────────────
+
+console.log(`\nOdor Complaint Desk`);
 console.log(`Profile: ${profile.profile}`);
-console.log(`Title: ${profile.title}`);
 console.log(`─────────────────────────────────────────────\n`);
 
 const blog = flow([
 
-  [ postScanner({ src: profile.src, profile }, profile.debug),  'post' ],
+  [ postScanner({ src: profile.src, profile }, profile.debug), 'post' ],
 
   ['post',
     gracefulShutdown(),
 
     // src checks
-    checkCoverImage({expectRatio: '1:1', minResolution: '1024x1024'}), // runs each check only complaining
-    checkTooManyFiles({maxRecommended: 3}), // looks in the src ... files folder and counts all files, then complains
+    checkPostJson(),
+    checkCoverImage({expectRatio: '1:1', minResolution: '1024x1024'}),
+    checkTooManyFiles({maxRecommended: 3}),
 
   'done'],
 
 ], { context: { profile } });
+
+// ─────────────────────────────────────────────
+// Summary
+// ─────────────────────────────────────────────
+
+let totalComplaints = 0;
+let postsWithComplaints = 0;
+let postsChecked = 0;
+
+blog.on('done', packet => {
+  postsChecked++;
+
+  if (packet._complaints?.length) {
+    postsWithComplaints++;
+    totalComplaints += packet._complaints.length;
+    console.log(`${packet.postId}:`);
+    for (const c of packet._complaints) {
+      console.log(`  ${c}`);
+    }
+  }
+
+  if (postsChecked >= packet._totalPosts) {
+    console.log(`\n─────────────────────────────────────────────`);
+    console.log(`${totalComplaints} complaint(s) in ${postsWithComplaints} of ${postsChecked} posts`);
+    console.log(`─────────────────────────────────────────────\n`);
+    blog.dispose();
+  }
+});

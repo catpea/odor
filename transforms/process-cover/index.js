@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { mkdir, rename } from 'node:fs/promises';
 import sharp from 'sharp';
-import { interpolatePath, resolvePath, encodingSemaphore, atomicCopyFile } from '../../lib.js';
+import { interpolatePath, resolvePath, atomicCopyFile } from '../../lib.js';
 
 sharp.concurrency(1);
 
@@ -54,11 +54,11 @@ export default function processCover(config, debug) {
 
     try {
       if (files.cover.endsWith('.avif')) {
+        // NOTE: do not compress/transform existing avi files as they may contain exotic things such as animation
         await atomicCopyFile(files.cover, destPath);
         console.log(`  [cover] ${postId}: copied (already AVIF)`);
       } else {
         const tmpPath = destPath + '.tmp';
-        await encodingSemaphore.acquire();
         try {
           let pipeline = sharp(files.cover)
             .resize(width, height, { kernel: sharp.kernel.mitchell, fit: 'cover' })
@@ -74,8 +74,6 @@ export default function processCover(config, debug) {
           } else {
             throw sharpErr;
           }
-        } finally {
-          encodingSemaphore.release();
         }
         if (fs.existsSync(tmpPath)) await rename(tmpPath, destPath);
       }
