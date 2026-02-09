@@ -9,9 +9,26 @@ npm install odor
 odor profile.json
 ```
 
+## System Requirements
+
+- **Node.js** >= 22.0.0
+- **ffmpeg** (system dependency, for audio encoding)
+
+## CLI Flags
+
+### `--dry-run`
+
+Preview what the build would write without touching disk:
+
+```bash
+odor --dry-run profile.json
+```
+
+All `atomicWriteFile` and `atomicCopyFile` calls are intercepted — the build runs to completion but no files are created, modified, or copied. A summary at the end shows the file count that would have been written.
+
 ## Profile Configuration
 
-Odor is driven by a JSON profile. All paths are relative to the profile's parent directory.
+Odor is driven by a JSON profile. All paths are relative to the profile's parent directory. See `docs/example-profile.json` for a complete example.
 
 ```json
 {
@@ -108,12 +125,20 @@ database/posts/
 ```
 postScanner -> skipUnchanged -> 'post'
 
-'post' -> [ processCover, processAudio, copyFiles ] -> processText -> verifyPost -> collectPost -> 'done'
+'post' -> [ processCover, processAudio, copyFiles ] -> processText -> verifyPost -> collectPost -> accumulate() -> 'build'
 
-'done' -> [ homepage, pagerizer, rssFeed ] -> useTheme -> 'finished'
+'build' -> [ homepage, pagerizer, rssFeed, playlist ] -> useTheme -> 'finished'
 ```
 
-The first edge scans source directories and filters unchanged posts via manifest comparison. The second edge processes each post through parallel encoding (cover + audio + file copy), then series stages for text rendering, verification, and collection. The third edge aggregates all posts into paginated HTML, an RSS feed, and installs theme files.
+The first edge scans source directories and filters unchanged posts via manifest comparison. The second edge processes each post through parallel encoding (cover + audio + file copy), then series stages for text rendering, verification, collection, and accumulation into a single aggregate packet. The third edge fans out to aggregators (homepage, archive pages, RSS feed, M3U playlists) then installs theme files.
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success, all posts valid |
+| 1 | Build completed but some posts failed |
+| 2 | Fatal error (bad profile, missing config) |
 
 ## Transforms
 
@@ -128,7 +153,8 @@ The first edge scans source directories and filters unchanged posts via manifest
 | **copy-files** | packet | `filesResult` | Copies `files/` subdirectory contents to permalink |
 | **process-text** | joined packet | `textResult` | Renders markdown to HTML permalink page |
 | **verify-post** | packet | `valid`, `errors` | Checks all results for errors |
-| **collect-post** | packet | side-effect | Pushes to shared `processedPosts` array for aggregators |
+| **collect-post** | packet | collected post | Extracts and flattens results from branches |
+| **accumulate** | packets | aggregate | Collects all post packets, sends one aggregate when count is reached |
 
 ### Aggregators
 
@@ -137,6 +163,7 @@ The first edge scans source directories and filters unchanged posts via manifest
 | **homepage** | Generates `index.html` with the latest posts |
 | **pagerizer** | Generates numbered archive pages (`page-1.html`, `page-2.html`, ...) |
 | **rss-feed** | Generates `feed.xml` with the 50 most recent posts |
+| **playlist** | Generates M3U playlists from audio posts |
 | **use-theme** | Recursively copies theme directory (CSS, assets) to dest |
 
 ## Incremental Builds
@@ -164,7 +191,7 @@ Odor provides higher-order functions that wrap transforms at the flow level, kee
 Creates a concurrency gate that limits how many packets can execute a transform simultaneously. Returns a wrapper function: call it with a transform to produce a gated version.
 
 ```js
-import { gate } from './lib.js';
+import { gate } from 'odor';
 
 const encodingGate = gate(os.cpus().length);
 
@@ -198,7 +225,7 @@ const blog = flow([
 
 ## Concurrency
 
-Cover encoding (sharp) and audio encoding (ffmpeg) are gated by a shared `gate(os.cpus().length)` at the flow level. Sharp's internal thread pool is set to 1 (`sharp.concurrency(1)`) -- parallelism comes from the gate running multiple single-threaded sharp calls. FFmpeg uses `-threads 0` (auto). The transforms themselves contain no concurrency logic.
+Cover encoding (sharp) and audio encoding (ffmpeg) are gated by a shared `queue('encoding', { capacity: os.cpus().length })` at the flow level. Sharp's internal thread pool is set to 1 (`sharp.concurrency(1)`) -- parallelism comes from the queue running multiple single-threaded sharp calls. FFmpeg uses `-threads 0` (auto). The transforms themselves contain no concurrency logic.
 
 ## Audio Presets
 
@@ -379,6 +406,46 @@ postScanner -> 'post'
 ```
 
 The agent task is wrapped in a `gate(1)` to serialize API calls and prevent readline prompts from interleaving.
+
+## Programmatic API
+
+Odor exports its library, queue, and kit modules for programmatic use:
+
+```js
+// Core library — paths, atomic writes, manifest, concurrency, HTML helpers
+import { setup, resolvePath, interpolatePath, gate, chunk } from 'odor';
+
+// Queue — capacity-limited work queue with lifecycle events
+import { queue, Queue } from 'odor/queue';
+
+// Kit — flow-control primitives (debounce, throttle, dedupe, batch, accumulate, retry)
+import { accumulate, batch, dedupe, retry } from 'odor/kit';
+```
+
+## Development
+
+### Project Structure
+
+```
+bin/                    # Thin CLI wrappers (shebang + run())
+src/
+  cli/                  # CLI orchestration (build, complaint, agent)
+  lib/                  # Core library (paths, atomic, manifest, concurrency, html, audio-presets, chunk)
+  transforms/           # 14 muriel transform modules
+  checks/               # 3 complaint desk checks
+  agents/               # Agent task + sanity check
+  queue/                # Queue class + README
+  kit/                  # Flow-control primitives (debounce, throttle, etc.)
+test/                   # Tests (node:test)
+docs/                   # Example profile
+```
+
+### Running Tests
+
+```bash
+npm test                # run all tests
+npm run test:watch      # watch mode
+```
 
 ## Dependencies
 

@@ -1,3 +1,7 @@
+/samples/
+coverage/
+test/tmp/
+
 # Logs
 logs
 *.log

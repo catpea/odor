@@ -34,21 +34,53 @@ graph.dispose(); // cleanup
 ## Project Structure
 
 ```
-index.js                          # Entry point: loads profile, builds flow graph, saves manifest
-lib.js                           # Shared utilities: paths, atomics, semaphore, manifest, helpers
-transforms/
-  post-scanner/index.js          # Producer: scans source dirs, emits one packet per post
-  skip-unchanged/index.js        # Filter: manifest-based incremental build detection
-  process-cover/index.js         # Parallel: encodes cover images to AVIF via sharp
-  process-audio/index.js         # Parallel: encodes audio to MP3 via ffmpeg
-  copy-files/index.js            # Parallel: copies files/ subdirectory to permalink
-  process-text/index.js          # Series: renders markdown to HTML permalink page
-  verify-post/index.js           # Series: checks all results for errors
-  collect-post/index.js          # Series: pushes to shared processedPosts array
-  homepage/index.js              # Aggregator: generates index.html with latest posts
-  pagerizer/index.js             # Aggregator: generates numbered archive pages
-  rss-feed/index.js              # Aggregator: generates feed.xml
-  use-theme/index.js             # Series: copies theme directory to dest
+bin/
+  odor.js                          # CLI wrapper → src/cli/build.js
+  odor-complaint.js                # CLI wrapper → src/cli/complaint.js
+  odor-agent.js                    # CLI wrapper → src/cli/agent.js
+src/
+  cli/
+    build.js                       # Main build orchestration (flow graph + completion)
+    complaint.js                   # Sanity-check orchestration
+    agent.js                       # AI agent orchestration
+  lib/
+    index.js                       # Barrel re-export of all lib modules
+    paths.js                       # setup, resolvePath, interpolatePath
+    atomic.js                      # atomicWriteFile, atomicCopyFile, setDryRun
+    manifest.js                    # loadManifest, saveManifest, computeConfigHash, hashFileContent
+    concurrency.js                 # createSemaphore, gate, isShutdownRequested, requestShutdown
+    html.js                        # renderPostCard, buildPager, escapeXml
+    audio-presets.js               # mp3Presets
+    chunk.js                       # chunk()
+  transforms/
+    post-scanner/index.js          # Producer: scans source dirs, emits one packet per post
+    skip-unchanged/index.js        # Filter: manifest-based incremental build detection
+    process-cover/index.js         # Parallel: encodes cover images to AVIF via sharp
+    process-audio/index.js         # Parallel: encodes audio to MP3 via ffmpeg
+    copy-files/index.js            # Parallel: copies files/ subdirectory to permalink
+    process-text/index.js          # Series: renders markdown to HTML permalink page
+    verify-post/index.js           # Series: checks all results for errors
+    collect-post/index.js          # Series: extracts and flattens results from branches
+    graceful-shutdown/index.js     # Guard: skips packets when shutdown requested
+    homepage/index.js              # Aggregator: generates index.html with latest posts
+    pagerizer/index.js             # Aggregator: generates numbered archive pages
+    rss-feed/index.js              # Aggregator: generates feed.xml
+    playlist/index.js              # Aggregator: generates M3U playlists
+    use-theme/index.js             # Series: copies theme directory to dest
+  checks/
+    check-post-json.js             # Validates required post.json fields
+    check-cover-image.js           # Validates cover image dimensions
+    check-too-many-files.js        # Warns on large files/ directory
+  agents/
+    agent-task.js                  # Core agent transform: API + prompt + write-back
+    sanity-check.js                # Pure validation for agent responses
+  queue/
+    index.js                       # Queue class (capacity, wrap, seal, drain, pause)
+  kit/
+    index.js                       # Flow-control primitives (debounce, throttle, dedupe, batch, accumulate, retry)
+test/                              # Tests using node:test
+docs/
+  example-profile.json             # Example profile configuration
 ```
 
 ## Flow Graph
@@ -56,16 +88,16 @@ transforms/
 ```
 postScanner -> skipUnchanged -> 'post'
 
-'post' -> [ processCover, processAudio, copyFiles ] -> processText -> verifyPost -> collectPost -> 'done'
+'post' -> [ processCover, processAudio, copyFiles ] -> processText -> verifyPost -> collectPost -> accumulate() -> 'build'
 
-'done' -> [ homepage, pagerizer, rssFeed ] -> useTheme -> 'finished'
+'build' -> [ homepage, pagerizer, rssFeed, playlist ] -> useTheme -> 'finished'
 ```
 
 Edge 1 is a producer edge: `postScanner` scans the filesystem and emits packets. `skipUnchanged` compares each packet against the manifest and either passes it through for processing or marks it as `_cached` with stored results.
 
-Edge 2 has a parallel stage (`[processCover, processAudio, copyFiles]`) followed by series stages. The three parallel transforms run concurrently per-post. After all three complete, their outputs are auto-joined into `packet.branches`. Downstream stages (`processText`, `verifyPost`, `collectPost`) find results via `branches.find(b => b.coverResult)` etc.
+Edge 2 has a parallel stage (`[processCover, processAudio, copyFiles]`) followed by series stages. The three parallel transforms run concurrently per-post. After all three complete, their outputs are auto-joined into `packet.branches`. Downstream stages (`processText`, `verifyPost`, `collectPost`) find results via `branches.find(b => b.coverResult)` etc. `accumulate()` collects all post packets and sends a single aggregate when the expected count is reached.
 
-Edge 3 aggregates: `homepage`, `pagerizer`, and `rssFeed` each collect all post packets (counting via `_totalPosts`), then generate site-wide output when the last packet arrives. After joining, `useTheme` copies theme files.
+Edge 3 aggregates: `homepage`, `pagerizer`, `rssFeed`, and `playlist` run in parallel and generate site-wide output. After joining, `useTheme` copies theme files.
 
 ## Key Patterns
 
@@ -82,7 +114,7 @@ export default function processCover(config, debug) {
 }
 ```
 
-In `index.js`, factories are called with profile sections: `processCover(profile.cover, profile.debug)`.
+In `src/cli/build.js`, factories are called with profile sections: `processCover(profile.cover, profile.debug)`.
 
 ### Cache Bypass
 
@@ -99,17 +131,15 @@ This passes cached results through the pipeline so auto-join and downstream tran
 
 ### Aggregator Collection Pattern
 
-Aggregators (`homepage`, `pagerizer`, `rssFeed`) count incoming packets against `_totalPosts`. They buffer packets and only generate output when `collected.length >= expectedTotal`. They read from the shared `processedPosts` array (populated by `collectPost`) rather than from individual packets.
+Aggregators (`homepage`, `pagerizer`, `rssFeed`, `playlist`) receive a single aggregate packet from `accumulate()` with `packet._collected` containing all post packets. They check for `_collected` and generate output:
 
 ```js
-collected.push(packet);
-if (expectedTotal !== null && collected.length >= expectedTotal) {
-  const validPosts = processedPosts.filter(p => p.valid);
-  // generate output...
-  send({ _complete: true });
-} else {
-  send({ _complete: false });
-}
+const posts = packet._collected;
+if (!posts) { send(packet); return; }
+
+const validPosts = posts.filter(p => p.valid);
+// generate output...
+send({ _complete: true });
 ```
 
 The `_complete` flag is used by `useTheme` to only run after all aggregators finish: `packet.branches?.every(b => b._complete)`.
@@ -126,15 +156,15 @@ const filesBranch = branches?.find(b => b.filesResult);
 
 ### Atomic Writes
 
-All file operations use `atomicWriteFile(path, data)` or `atomicCopyFile(src, dest)` from `lib.js`. These write to a `.tmp` file then rename, ensuring no corrupt output on crash.
+All file operations use `atomicWriteFile(path, data)` or `atomicCopyFile(src, dest)` from `src/lib/atomic.js`. These write to a `.tmp` file then rename, ensuring no corrupt output on crash. When `setDryRun(true)` is called, these functions log what they would write but don't touch disk.
 
 ### Path Resolution
 
-`resolvePath(template)` in `lib.js` resolves paths relative to the base directory (profile's parent) and interpolates `{profile}`. Other variables (`{guid}`, `{chapter}`, `{id}`) are replaced in individual transforms.
+`resolvePath(template)` in `src/lib/paths.js` resolves paths relative to the base directory (profile's parent) and interpolates `{profile}`. Other variables (`{guid}`, `{chapter}`, `{id}`) are replaced in individual transforms.
 
 ### Concurrency Control
 
-`encodingSemaphore` in `lib.js` limits concurrent sharp/ffmpeg operations to `os.cpus().length`. Transforms acquire before encoding and release in a `finally` block.
+Cover and audio encoding are gated by a shared `queue('encoding', { capacity: os.cpus().length })` at the flow level. The `gate()` function in `src/lib/concurrency.js` provides a lighter-weight alternative for simple cases.
 
 ## Manifest
 
@@ -165,28 +195,21 @@ All file operations use `atomicWriteFile(path, data)` or `atomicCopyFile(src, de
 }
 ```
 
-The manifest is built in the `blog.on('finished')` handler by merging `manifestUpdates` (populated by `skipUnchanged`) with results from `processedPosts` (populated by `collectPost`).
-
-## Shared State
-
-Two shared mutable structures in `lib.js`:
-
-- **`processedPosts`** (array): Populated by `collectPost`. Read by aggregators (`homepage`, `pagerizer`, `rssFeed`) and the completion handler.
-- **`manifestUpdates`** (Map): Populated by `skipUnchanged` for every post (cached and fresh). Read by the completion handler to build the new manifest.
+The manifest is built in the `blog.on('finished')` handler in `src/cli/build.js` from the `collectedPosts` array (populated via the `accumulate()` aggregate packet).
 
 ## Adding a New Transform
 
-1. Create `transforms/your-transform/index.js` with the factory pattern
+1. Create `src/transforms/your-transform/index.js` with the factory pattern
 2. Add cache bypass guard if it's a per-post transform
-3. Import in `blog.js` and add to the appropriate edge
+3. Import in `src/cli/build.js` and add to the appropriate edge
 4. If it produces a result, update `collectPost` to store it and `verifyPost` to check it
 
 ## Adding a New Aggregator
 
-1. Create the transform with the collection pattern (buffer packets, act on `collected.length >= expectedTotal`)
-2. Read from `processedPosts` for post data
-3. Add to the parallel array in the aggregation edge: `['done', [homepage, pagerizer, rssFeed, yourAggregator], useTheme, 'finished']`
-4. It must send `{ _complete: true }` or `{ _complete: false }` so `useTheme` knows when all aggregators finish
+1. Create the transform that checks `packet._collected`
+2. Filter valid posts and generate output
+3. Add to the parallel array in the aggregation edge: `['build', [homepage, pagerizer, rssFeed, playlist, yourAggregator], useTheme, 'finished']`
+4. It must send `{ _complete: true }` so `useTheme` knows when all aggregators finish
 
 ## Debug Configuration
 
@@ -199,9 +222,9 @@ The `debug` object in the profile controls test runs:
 
 ## Common Modifications
 
-**Change cover format**: Modify `process-cover/index.js` -- replace `.avif({ quality, effort })` with `.webp()`, `.png()`, etc. Update the dest template extension in the profile.
+**Change cover format**: Modify `src/transforms/process-cover/index.js` -- replace `.avif({ quality, effort })` with `.webp()`, `.png()`, etc. Update the dest template extension in the profile.
 
-**Change HTML templates**: Modify `process-text/index.js` for permalink pages, `homepage/index.js` for the landing page, `pagerizer/index.js` for archive pages. All use template literals.
+**Change HTML templates**: Modify `src/transforms/process-text/index.js` for permalink pages, `src/transforms/homepage/index.js` for the landing page, `src/transforms/pagerizer/index.js` for archive pages. All use template literals.
 
 **Add metadata to posts**: Extend `post.json` fields, access via `packet.postData` in any transform.
 

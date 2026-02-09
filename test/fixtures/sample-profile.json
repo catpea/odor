@@ -1,0 +1,15 @@
+{
+  "profile": "test-blog",
+  "title": "Test Blog",
+  "url": "https://example.com",
+  "src": "database/posts",
+  "dest": "dist/{profile}/docs",
+  "theme": { "src": "themes/default", "dest": "dist/{profile}/docs" },
+  "skip": { "fastModificationCheck": true },
+  "pagerizer": { "pp": 24, "dest": "dist/{profile}/docs" },
+  "feed": { "dest": "dist/{profile}/docs/feed.xml" },
+  "cover": { "dest": "dist/{profile}/docs/permalink/{guid}/cover.avif", "url": "/permalink/{guid}/cover.avif", "width": 1024, "height": 1024, "quality": 80, "effort": 4, "exif": {} },
+  "audio": { "dest": "dist/chapters/chapter-{chapter}/docs/{id}.mp3", "url": "https://example.com/chapter-{chapter}/{id}.mp3", "preset": "balanced", "id3": {} },
+  "playlist": { "url": "https://example.com/chapter-{chapter}/{id}.mp3", "dest": "dist/{profile}/docs/playlist.m3u", "intermediate": false },
+  "debug": {}
+}
