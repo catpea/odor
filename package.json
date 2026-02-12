@@ -1,6 +1,6 @@
 {
   "name": "odor",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Static blog generator with parallel encoding, incremental builds, atomic writes, and an AI agent for spellcheck, tagging, summarization, and quality evaluation.",
   "type": "module",
   "engines": {
@@ -27,7 +27,17 @@
     "test:watch": "node --test --watch test/**/*.test.js",
     "save": "git add .; git commit -m 'Updated Release'; npm version patch; npm publish; git push --follow-tags;"
   },
-  "keywords": ["blog", "static-site", "muriel", "flow", "agent", "ai", "spellcheck", "incremental", "atomic"],
+  "keywords": [
+    "blog",
+    "static-site",
+    "muriel",
+    "flow",
+    "agent",
+    "ai",
+    "spellcheck",
+    "incremental",
+    "atomic"
+  ],
   "dependencies": {
     "marked": "^17.0.1",
     "muriel": "^1.0.5",
