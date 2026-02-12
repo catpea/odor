@@ -75,12 +75,45 @@
   "agent": {
     "url": "http://localhost:11434/v1/chat/completions",
     "model": "llama3",
-    "system": "You are a careful editor. Return only the corrected text.",
+    "system": "You are an AI assistant helping improve blog posts. Follow task-specific instructions carefully.",
     "yolo": false,
+    "contextSize": 2480,
     "tasks": [
-      { "name": "spellcheck", "prompt": "Fix spelling and grammar...", "target": "text.md" },
-      { "name": "tags", "prompt": "Choose tags...", "target": "post.json:tags" },
-      { "name": "description", "prompt": "Write a one-sentence summary...", "target": "post.json:description" }
+      {
+        "name": "spellcheck",
+        "prompt": "Fix spelling and grammar in the following text.",
+        "target": "text.md",
+        "system": "You are a careful proofreader. Return ONLY JSON arrays of corrections.",
+        "strategy": "iterative-spellcheck",
+        "reflect": true
+      },
+      {
+        "name": "tags",
+        "prompt": "Choose relevant tags for this post. Return a JSON array of strings.",
+        "target": "post.json:tags",
+        "system": "You are a content tagger. Return only a JSON array of lowercase tag strings.",
+        "skipExisting": true,
+        "autoAccept": true
+      },
+      {
+        "name": "description",
+        "prompt": "Write a one-sentence summary of this post.",
+        "target": "post.json:description",
+        "system": "You are a content summarizer. Return only the summary sentence.",
+        "skipExisting": true,
+        "autoAccept": true
+      },
+      {
+        "name": "evaluate",
+        "prompt": "Evaluate this post's quality.",
+        "target": "post.json",
+        "strategy": "evaluate",
+        "autoAccept": true,
+        "evaluate": {
+          "thresholds": { "spelling": 8, "tags": 8, "description": 8 },
+          "subTasks": { "spelling": "spellcheck", "tags": "tags", "description": "description" }
+        }
+      }
     ]
   }
 }

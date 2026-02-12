@@ -6,6 +6,7 @@ import readline from 'node:readline';
 import { execSync } from 'node:child_process';
 
 import { setup, requestShutdown, gate } from '../lib/index.js';
+import { loadLessons } from '../agents/lessons.js';
 
 import postScanner      from '../transforms/post-scanner/index.js';
 import gracefulShutdown from '../transforms/graceful-shutdown/index.js';
@@ -27,11 +28,12 @@ export async function run(args) {
   }
 
   let profile;
+  let profileDir;
   try {
     const profileFullPath = path.resolve(process.cwd(), profilePath);
     profile = JSON.parse(fs.readFileSync(profileFullPath, 'utf-8'));
-    const baseDir = path.resolve(path.dirname(profileFullPath));
-    setup(baseDir, profile);
+    profileDir = path.resolve(path.dirname(profileFullPath));
+    setup(profileDir, profile);
   } catch (err) {
     console.error(`Fatal: ${err.message}`);
     return EXIT_FATAL;
@@ -43,7 +45,7 @@ export async function run(args) {
   }
 
   const agentConfig = profile.agent;
-  const { url, model, system, yolo = false, tasks = [] } = agentConfig;
+  const { url, model, system, yolo = false, contextSize, tasks = [] } = agentConfig;
 
   if (!url || !model || !tasks.length) {
     console.error('Error: profile.agent must have url, model, and tasks');
@@ -63,13 +65,38 @@ export async function run(args) {
   }
 
   // ─────────────────────────────────────────────
-  // SIGINT
+  // Lessons preload
   // ─────────────────────────────────────────────
 
+  const lessons = await loadLessons(profileDir);
+
+  // ─────────────────────────────────────────────
+  // SIGINT — Triple CTRL-C
+  // ─────────────────────────────────────────────
+
+  const abortController = new AbortController();
+  const sigintTimestamps = [];
+
   process.on('SIGINT', () => {
-    console.log('\nShutdown requested — finishing in-flight work...');
-    requestShutdown();
+    const now = Date.now();
+    // Clean entries older than 1 second
+    while (sigintTimestamps.length > 0 && now - sigintTimestamps[0] > 1000) {
+      sigintTimestamps.shift();
+    }
+    sigintTimestamps.push(now);
+
+    if (sigintTimestamps.length === 1) {
+      console.log('\nShutdown requested — press two more times to terminate');
+      requestShutdown();
+      abortController.abort();
+    } else if (sigintTimestamps.length === 2) {
+      console.log('\nPress one more time to terminate');
+    } else {
+      process.exit(1);
+    }
   });
+
+  const aborted = () => abortController.signal.aborted;
 
   // ─────────────────────────────────────────────
   // Run Tasks
@@ -80,6 +107,7 @@ export async function run(args) {
   console.log(`Model: ${model}`);
   console.log(`Mode: ${yolo ? 'yolo (auto-accept)' : 'interactive'}`);
   console.log(`Tasks: ${selectedTasks.map(t => t.name).join(', ')}`);
+  if (contextSize) console.log(`Context: ${contextSize} tokens`);
   console.log(`─────────────────────────────────────────────\n`);
 
   const allStats = [];
@@ -96,6 +124,9 @@ export async function run(args) {
 
       const apiGate = gate(1);
 
+      // Resolve per-task system prompt
+      const taskSystem = task.system ?? system;
+
       const blog = flow([
 
         [ postScanner({ src: profile.src, profile }, profile.debug), 'post' ],
@@ -106,7 +137,20 @@ export async function run(args) {
             name: task.name,
             prompt: task.prompt,
             target: task.target,
-            url, model, system, yolo, rl,
+            url, model,
+            system: taskSystem,
+            yolo, rl,
+            strategy: task.strategy,
+            skipExisting: task.skipExisting,
+            autoAccept: task.autoAccept,
+            reflect: task.reflect,
+            evaluate: task.evaluate,
+            contextSize,
+            lessons,
+            profileDir,
+            allTasks: tasks,
+            signal: abortController.signal,
+            aborted,
           })),
         'done'],
 
@@ -142,6 +186,7 @@ export async function run(args) {
 
   // Run tasks sequentially
   for (const task of selectedTasks) {
+    if (aborted()) break;
     console.log(`\n── Task: ${task.name} ──`);
     const stats = await runTask(task);
     allStats.push(stats);
@@ -174,10 +219,8 @@ export async function run(args) {
 
     if (answer.trim().toLowerCase() === 'y') {
       try {
-        const profileFullPath = path.resolve(process.cwd(), profilePath);
-        const baseDir = path.resolve(path.dirname(profileFullPath));
         execSync('git add -A && git commit -m "odor-agent: apply AI edits"', {
-          cwd: baseDir,
+          cwd: profileDir,
           stdio: 'inherit',
         });
       } catch (err) {

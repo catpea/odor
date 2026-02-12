@@ -1,34 +1,24 @@
-// Core agent transform: API call + display + prompt + write-back
+// Core agent transform: strategy dispatch, skipExisting, context trim, lessons, write-back
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { sanityCheck, parseJsonFieldResponse } from './sanity-check.js';
+import { sanityCheck, parseJsonFieldResponse, isFieldEmpty } from './sanity-check.js';
+import { callApi } from './api.js';
+import { trimToContextBudget } from './context-budget.js';
+import { buildSystemWithLessons, appendLesson } from './lessons.js';
+import defaultStrategy from './strategies/default.js';
+import iterativeSpellcheckStrategy from './strategies/iterative-spellcheck.js';
+import evaluateStrategy from './strategies/evaluate.js';
+
+const STRATEGIES = {
+  'default': defaultStrategy,
+  'iterative-spellcheck': iterativeSpellcheckStrategy,
+  'evaluate': evaluateStrategy,
+};
 
 function parseTarget(target) {
   const colonIdx = target.indexOf(':');
   if (colonIdx === -1) return { file: target, key: null };
   return { file: target.slice(0, colonIdx), key: target.slice(colonIdx + 1) };
-}
-
-async function callApi(url, model, system, userMessage) {
-  const body = {
-    model,
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: userMessage },
-    ],
-    stream: false,
-  };
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API ${res.status}: ${text.slice(0, 200)}`);
-  }
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content ?? '';
 }
 
 function displayDiff(original, corrected, postId) {
@@ -61,16 +51,84 @@ function promptUser(rl, question) {
   return new Promise(resolve => rl.question(question, resolve));
 }
 
-export default function agentTask({ name, prompt, target, url, model, system, yolo, rl }) {
-
+export default function agentTask({
+  name, prompt, target, url, model, system, yolo, rl,
+  strategy = 'default', skipExisting = false, autoAccept = false,
+  reflect = false, evaluate, contextSize, lessons, profileDir,
+  allTasks, signal, aborted,
+}) {
   const { file: targetFile, key: targetKey } = parseTarget(target);
+
+  // Build system prompt with lessons
+  const effectiveSystem = buildSystemWithLessons(system, name, lessons);
+
+  // Resolve strategy function
+  const strategyFn = STRATEGIES[strategy] || STRATEGIES['default'];
+
+  // Build a runSubTask callback for evaluate strategy
+  const runSubTask = async (taskDef, postId, postDir) => {
+    const subStrategy = STRATEGIES[taskDef.strategy || 'default'] || STRATEGIES['default'];
+    const subSystem = buildSystemWithLessons(taskDef.system || system, taskDef.name, lessons);
+    const { file: subFile, key: subKey } = parseTarget(taskDef.target);
+
+    // Read sub-task input content
+    let subTextContent;
+    try {
+      subTextContent = await readFile(path.join(postDir, 'text.md'), 'utf-8');
+    } catch {
+      subTextContent = '';
+    }
+
+    if (contextSize) {
+      subTextContent = trimToContextBudget(subTextContent, {
+        contextSize, systemPrompt: subSystem, userPrompt: taskDef.prompt,
+      });
+    }
+
+    let subCurrentFieldValue = null;
+    let subPostJson = null;
+    if (subKey) {
+      const jsonPath = path.join(postDir, subFile);
+      subPostJson = JSON.parse(await readFile(jsonPath, 'utf-8'));
+      subCurrentFieldValue = subPostJson[subKey];
+    }
+
+    const subResult = await subStrategy({
+      textContent: subTextContent,
+      currentFieldValue: subCurrentFieldValue,
+      postJson: subPostJson,
+      targetKey: subKey,
+      prompt: taskDef.prompt,
+      url, model,
+      system: subSystem,
+      callApi, signal,
+      sanityCheck, parseJsonFieldResponse,
+      displayDiff, displayFieldChange, promptUser,
+      yolo, autoAccept: taskDef.autoAccept ?? false,
+      rl, aborted,
+      postId, name: taskDef.name,
+    });
+
+    // Write-back for sub-task
+    if (subResult.accepted) {
+      if (subKey) {
+        subPostJson[subKey] = subResult.newFieldValue;
+        const jsonPath = path.join(postDir, subFile);
+        await writeFile(jsonPath, JSON.stringify(subPostJson, null, 2) + '\n');
+      } else if (subResult.response) {
+        await writeFile(path.join(postDir, subFile), subResult.response);
+      }
+    }
+
+    return subResult;
+  };
 
   return async (send, packet) => {
     const { postId, postDir } = packet;
     const result = { accepted: false, rejected: false, retries: 0, error: null };
 
     try {
-      // Read input content (always text.md for context)
+      // Read input content
       let textContent;
       try {
         textContent = await readFile(packet.files.text, 'utf-8');
@@ -78,7 +136,7 @@ export default function agentTask({ name, prompt, target, url, model, system, yo
         textContent = '';
       }
 
-      // For JSON field targets, also read current value
+      // For JSON field targets, read current value
       let currentFieldValue = null;
       let postJson = null;
       if (targetKey) {
@@ -87,97 +145,69 @@ export default function agentTask({ name, prompt, target, url, model, system, yo
         currentFieldValue = postJson[targetKey];
       }
 
-      // Build user message
-      let userMessage = prompt + '\n\n' + textContent;
-      if (targetKey && currentFieldValue != null) {
-        userMessage += `\n\nCurrent ${targetKey}: ${JSON.stringify(currentFieldValue)}`;
+      // skipExisting: skip if field already has a value
+      if (skipExisting && targetKey && !isFieldEmpty(currentFieldValue)) {
+        console.log(`  [${name}] ${postId}: skipped (${targetKey} already set)`);
+        result.rejected = true;
+        packet._agentResult = result;
+        send(packet);
+        return;
       }
 
-      // Retry loop
-      let action = 'retry';
-      while (action === 'retry') {
-        console.log(`\n  [${name}] ${postId}:`);
+      // Context trimming
+      if (contextSize) {
+        textContent = trimToContextBudget(textContent, {
+          contextSize, systemPrompt: effectiveSystem, userPrompt: prompt,
+        });
+      }
 
-        let response;
+      // Dispatch to strategy
+      const strategyResult = await strategyFn({
+        textContent, currentFieldValue, postJson, targetKey,
+        prompt, url, model,
+        system: effectiveSystem,
+        callApi, signal,
+        sanityCheck, parseJsonFieldResponse,
+        displayDiff, displayFieldChange, promptUser,
+        yolo, autoAccept, rl, aborted,
+        postId, name,
+        // evaluate-specific
+        evaluate, allTasks, runSubTask, postDir,
+      });
+
+      // Merge strategy result
+      result.accepted = strategyResult.accepted;
+      result.rejected = strategyResult.rejected;
+      result.retries = strategyResult.retries;
+      result.error = strategyResult.error;
+
+      // Write-back (strategy does NOT write to disk)
+      if (strategyResult.accepted) {
+        if (targetKey && strategyResult.newFieldValue !== null) {
+          postJson[targetKey] = strategyResult.newFieldValue;
+          const jsonPath = path.join(postDir, targetFile);
+          await writeFile(jsonPath, JSON.stringify(postJson, null, 2) + '\n');
+        } else if (!targetKey && strategyResult.response) {
+          await writeFile(packet.files.text, strategyResult.response);
+        }
+      }
+
+      // Abort propagation
+      if (strategyResult.abort) {
+        packet._abort = true;
+      }
+
+      // Self-reflection: ask AI what could be improved
+      if (reflect && strategyResult.accepted && profileDir) {
         try {
-          response = await callApi(url, model, system, userMessage);
-        } catch (err) {
-          console.log(`  \x1b[31mAPI error: ${err.message}\x1b[0m`);
-          result.error = err.message;
-          result.rejected = true;
-          break;
-        }
-
-        // For JSON field targets, parse the response
-        let processedResponse = response;
-        let newFieldValue = null;
-        if (targetKey) {
-          newFieldValue = parseJsonFieldResponse(response, targetKey);
-          processedResponse = JSON.stringify(newFieldValue);
-        }
-
-        // Sanity check
-        const original = targetKey ? JSON.stringify(currentFieldValue ?? '') : textContent;
-        const check = sanityCheck(processedResponse, original, targetKey);
-
-        if (!check.ok) {
-          console.log(`  \x1b[33mSanity check failed: ${check.reason}\x1b[0m`);
-          if (yolo) {
-            result.rejected = true;
-            break;
+          const reflectPrompt = `You just completed a "${name}" task on a blog post. The result was accepted. What is one short lesson or tip you learned that could help you do this task better next time? Reply with a single concise sentence.`;
+          const lesson = await callApi(url, model, effectiveSystem, reflectPrompt, { signal });
+          const trimmedLesson = lesson.trim();
+          if (trimmedLesson && trimmedLesson.length < 200) {
+            await appendLesson(profileDir, name, trimmedLesson);
           }
-        }
-
-        // Display result
-        if (targetKey) {
-          displayFieldChange(targetKey, currentFieldValue, newFieldValue);
-        } else {
-          displayDiff(textContent, response, postId);
-        }
-
-        // Prompt user (skip in yolo mode)
-        if (yolo) {
-          if (check.ok) {
-            action = 'accept';
-          } else {
-            action = 'reject';
-          }
-        } else {
-          const answer = await promptUser(rl, '  [1] Yes  [2] No  [3] Retry  [4] Abort > ');
-          const choice = answer.trim();
-
-          if (choice === '1' || choice.toLowerCase() === 'y') {
-            action = 'accept';
-          } else if (choice === '2' || choice.toLowerCase() === 'n') {
-            action = 'reject';
-          } else if (choice === '3' || choice.toLowerCase() === 'r') {
-            action = 'retry';
-            result.retries++;
-          } else if (choice === '4' || choice.toLowerCase() === 'a') {
-            action = 'abort';
-          } else {
-            action = 'reject';
-          }
-        }
-
-        if (action === 'accept') {
-          // Write back
-          if (targetKey) {
-            postJson[targetKey] = newFieldValue;
-            const jsonPath = path.join(postDir, targetFile);
-            await writeFile(jsonPath, JSON.stringify(postJson, null, 2) + '\n');
-          } else {
-            await writeFile(packet.files.text, response);
-          }
-          result.accepted = true;
-          console.log(`  \x1b[32maccepted\x1b[0m`);
-        } else if (action === 'reject') {
-          result.rejected = true;
-          console.log(`  \x1b[33mskipped\x1b[0m`);
-        } else if (action === 'abort') {
-          result.rejected = true;
-          packet._abort = true;
-          console.log(`  \x1b[31maborted\x1b[0m`);
+        } catch {
+          // Reflection failure is non-fatal
         }
       }
     } catch (err) {

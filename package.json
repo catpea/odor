@@ -7,9 +7,9 @@
     "node": ">=22.0.0"
   },
   "bin": {
-    "odor": "./bin/odor.js",
-    "odor-complaint": "./bin/odor-complaint.js",
-    "odor-agent": "./bin/odor-agent.js"
+    "odor": "bin/odor.js",
+    "odor-complaint": "bin/odor-complaint.js",
+    "odor-agent": "bin/odor-agent.js"
   },
   "exports": {
     ".": "./src/lib/index.js",

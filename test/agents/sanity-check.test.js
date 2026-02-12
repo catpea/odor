@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { sanityCheck, hasGarbledCharacters, parseJsonFieldResponse } from '../../src/agents/sanity-check.js';
+import { sanityCheck, hasGarbledCharacters, parseJsonFieldResponse, isFieldEmpty } from '../../src/agents/sanity-check.js';
 
 describe('hasGarbledCharacters', () => {
   it('returns false for normal text', () => {
@@ -96,5 +96,47 @@ describe('parseJsonFieldResponse', () => {
   it('returns string for unparseable generic fields', () => {
     const result = parseJsonFieldResponse('not json', 'field');
     assert.equal(result, 'not json');
+  });
+});
+
+describe('isFieldEmpty', () => {
+  it('returns true for null', () => {
+    assert.equal(isFieldEmpty(null), true);
+  });
+
+  it('returns true for undefined', () => {
+    assert.equal(isFieldEmpty(undefined), true);
+  });
+
+  it('returns true for empty string', () => {
+    assert.equal(isFieldEmpty(''), true);
+  });
+
+  it('returns true for whitespace-only string', () => {
+    assert.equal(isFieldEmpty('   '), true);
+  });
+
+  it('returns true for empty array', () => {
+    assert.equal(isFieldEmpty([]), true);
+  });
+
+  it('returns false for non-empty string', () => {
+    assert.equal(isFieldEmpty('hello'), false);
+  });
+
+  it('returns false for non-empty array', () => {
+    assert.equal(isFieldEmpty(['a']), false);
+  });
+
+  it('returns false for number', () => {
+    assert.equal(isFieldEmpty(42), false);
+  });
+
+  it('returns false for zero', () => {
+    assert.equal(isFieldEmpty(0), false);
+  });
+
+  it('returns false for boolean false', () => {
+    assert.equal(isFieldEmpty(false), false);
   });
 });

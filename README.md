@@ -1,18 +1,56 @@
 # Odor
 
-A static blog generator built on the [muriel](https://www.npmjs.com/package/muriel) filtergraph flow engine. Processes thousands of posts with parallel encoding, incremental builds, and atomic writes.
+A static blog generator built on the [muriel](https://www.npmjs.com/package/muriel) filtergraph flow engine. Processes thousands of posts with parallel encoding, incremental builds, and atomic writes. Includes an AI agent that can spellcheck, tag, summarize, and evaluate your posts using any local or remote OpenAI-compatible API.
 
 ## Quick Start
 
 ```bash
 npm install odor
+```
+
+**Build your blog:**
+
+```bash
 odor profile.json
+```
+
+**Check for problems without building:**
+
+```bash
+odor-complaint profile.json
+```
+
+**Run AI tasks on your posts:**
+
+```bash
+odor-agent profile.json            # run all tasks
+odor-agent profile.json spellcheck  # run one task
 ```
 
 ## System Requirements
 
 - **Node.js** >= 22.0.0
 - **ffmpeg** (system dependency, for audio encoding)
+
+## How It Works
+
+Odor reads a JSON profile that tells it where your posts live and where to put the output. Each post is a directory containing a `post.json`, a `text.md`, and optionally a cover image and audio file. Odor processes them all in parallel — encoding covers to AVIF, audio to MP3, rendering Markdown to HTML — then generates a homepage, paginated archives, an RSS feed, and M3U playlists.
+
+### Post Directory Structure
+
+Each post lives in its own directory under the `src` path from your profile:
+
+```
+database/posts/
+  poem-0001/
+    post.json       # Required: { guid, id, chapter, title, date, ... }
+    text.md         # Markdown content
+    cover.jpg       # Cover image (jpg, png, webp, or avif)
+    audio.m4a       # Audio file (any ffmpeg-supported format)
+    files/          # Optional: additional files copied to permalink
+      diagram.svg
+      data.csv
+```
 
 ## CLI Flags
 
@@ -104,22 +142,6 @@ Odor is driven by a JSON profile. All paths are relative to the profile's parent
 | `skipCovers` | Skip all cover image encoding |
 | `skipAudio` | Skip all audio encoding |
 
-## Post Directory Structure
-
-Each post lives in its own directory under `src`:
-
-```
-database/posts/
-  poem-0001/
-    post.json       # Required: { guid, id, chapter, title, date, ... }
-    text.md         # Markdown content
-    cover.jpg       # Cover image (jpg, png, webp, or avif)
-    audio.m4a       # Audio file (any ffmpeg-supported format)
-    files/          # Optional: additional files copied to permalink
-      diagram.svg
-      data.csv
-```
-
 ## Flow Graph
 
 ```
@@ -144,17 +166,17 @@ The first edge scans source directories and filters unchanged posts via manifest
 
 ### Per-Post Pipeline
 
-| Transform | Input | Output | Description |
-|-----------|-------|--------|-------------|
-| **post-scanner** | filesystem | packets | Reads post directories, emits one packet per post |
-| **skip-unchanged** | packet | packet | Compares against manifest; cached posts bypass encoding |
-| **process-cover** | packet | `coverResult` | Encodes cover to AVIF via sharp. Copies AVIF sources as-is. Falls back to copy on unsupported formats |
-| **process-audio** | packet | `audioResult` | Encodes audio to MP3 via ffmpeg with configurable presets |
-| **copy-files** | packet | `filesResult` | Copies `files/` subdirectory contents to permalink |
-| **process-text** | joined packet | `textResult` | Renders markdown to HTML permalink page |
-| **verify-post** | packet | `valid`, `errors` | Checks all results for errors |
-| **collect-post** | packet | collected post | Extracts and flattens results from branches |
-| **accumulate** | packets | aggregate | Collects all post packets, sends one aggregate when count is reached |
+| Transform | Description |
+|-----------|-------------|
+| **post-scanner** | Reads post directories, emits one packet per post |
+| **skip-unchanged** | Compares against manifest; cached posts bypass encoding |
+| **process-cover** | Encodes cover to AVIF via sharp. Copies AVIF sources as-is |
+| **process-audio** | Encodes audio to MP3 via ffmpeg with configurable presets |
+| **copy-files** | Copies `files/` subdirectory contents to permalink |
+| **process-text** | Renders markdown to HTML permalink page |
+| **verify-post** | Checks all results for errors |
+| **collect-post** | Extracts and flattens results from branches |
+| **accumulate** | Collects all post packets, sends one aggregate when count is reached |
 
 ### Aggregators
 
@@ -174,17 +196,15 @@ The builder maintains `.odor-manifest.json` in the dest directory. Each post is 
 2. **Hash fallback**: Some mtimes differ -- re-hash only changed files, compare composite hash
 3. **Rebuild**: Composite hash differs or no manifest entry -- full processing
 
-Cached posts emit stored results directly, bypassing all encoding. Aggregators receive identical data regardless of cache status.
-
-Profile changes (detected via config hash) trigger a full rebuild. Already-encoded cover images and audio files are preserved -- only delete the output file to force re-encoding.
+Profile changes (detected via config hash) trigger a full rebuild.
 
 ## Atomic Writes
 
-All file writes use a write-to-tmp-then-rename pattern. If the process is killed mid-write, output files are either fully old or fully new, never corrupt. Stale `.tmp` files are overwritten on the next build.
+All file writes use a write-to-tmp-then-rename pattern. If the process is killed mid-write, output files are either fully old or fully new, never corrupt.
 
-## Higher Order Functions
+## Higher-Order Functions
 
-Odor provides higher-order functions that wrap transforms at the flow level, keeping transforms pure and concurrency visible in the flow graph.
+Odor provides higher-order functions that wrap transforms at the flow level, keeping transforms pure and concurrency concerns visible in the flow graph.
 
 ### `gate(concurrency)`
 
@@ -212,7 +232,7 @@ const blog = flow([
 
 Transforms wrapped by the same gate instance share a single semaphore. In the example above, `processCover` and `processAudio` run in parallel branches but compete for the same pool of `os.cpus().length` slots, preventing CPU oversubscription. `copyFiles` is I/O-bound and runs without a gate.
 
-A `gate(1)` serializes packets through a transform, useful when the transform holds a shared resource like a readline interface or a single-connection API:
+A `gate(1)` serializes packets through a transform — useful when the transform holds a shared resource like a readline interface or a single-connection API:
 
 ```js
 const apiGate = gate(1);
@@ -223,9 +243,96 @@ const blog = flow([
 ]);
 ```
 
-## Concurrency
+### `retry(n, options)`
 
-Cover encoding (sharp) and audio encoding (ffmpeg) are gated by a shared `queue('encoding', { capacity: os.cpus().length })` at the flow level. Sharp's internal thread pool is set to 1 (`sharp.concurrency(1)`) -- parallelism comes from the queue running multiple single-threaded sharp calls. FFmpeg uses `-threads 0` (auto). The transforms themselves contain no concurrency logic.
+Wraps a transform with automatic retry logic. This is a **two-level** higher-order function: first you configure retries, then you wrap a transform.
+
+```js
+import { retry } from 'odor/kit';
+
+// Retry up to 3 times with linear backoff (1s, 2s, 3s)
+const resilientTransform = retry(3, { backoff: 1000 })(myTransform);
+
+// Custom backoff function
+const customRetry = retry(5, {
+  backoff: attempt => Math.pow(2, attempt) * 100,  // exponential
+  when: err => err.code === 'ECONNRESET',           // only retry network errors
+})(myTransform);
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `backoff` | `number` or `(attempt) => ms` | `0` | Linear: `backoff * (attempt + 1)`. Function: called with attempt index |
+| `when` | `(error) => boolean` | all errors | Only retry when predicate returns true |
+
+### `debounce(ms)`
+
+Only forwards the last packet within a quiet window. Previous packets are silently dropped. Useful for filesystem watchers that fire multiple events for a single change.
+
+```js
+import { debounce } from 'odor/kit';
+
+const blog = flow([
+  [fileWatcher, 'change'],
+  ['change', debounce(300), rebuildSite, 'done'],
+]);
+```
+
+### `throttle(perSecond)`
+
+Rate-limits packets to N per second with even spacing. Packets are delayed, not dropped.
+
+```js
+import { throttle } from 'odor/kit';
+
+const blog = flow([
+  [producer, 'item'],
+  ['item', throttle(10), processItem, 'done'],  // max 10 per second
+]);
+```
+
+### `dedupe(keyFn, options)`
+
+Drops packets with previously-seen keys. Optionally expire entries after a TTL.
+
+```js
+import { dedupe } from 'odor/kit';
+
+const blog = flow([
+  [producer, 'item'],
+  ['item', dedupe(p => p.id, { ttl: 60000 }), processItem, 'done'],
+]);
+```
+
+### `batch(size)`
+
+Collects packets into groups of `size`. Each group is sent as `{ _batch: [...] }`. Useful for bulk API calls or database inserts.
+
+```js
+import { batch } from 'odor/kit';
+
+const blog = flow([
+  [producer, 'item'],
+  ['item', batch(50), bulkInsert, 'done'],
+]);
+```
+
+### `accumulate(countKey)`
+
+Collects all packets until the expected count is reached, then sends one aggregate packet with `_collected` (array of all packets) and `_total` (count). Each incoming packet must carry the expected total under the given key.
+
+```js
+import { accumulate } from 'odor/kit';
+
+const blog = flow([
+  [producer, 'item'],
+  ['item', processItem, accumulate('_totalItems'), 'all'],
+]);
+
+blog.on('all', packet => {
+  const items = packet._collected;  // array of all processed items
+});
+```
 
 ## Audio Presets
 
@@ -248,8 +355,6 @@ A sanity checker that scans your post database for common problems without build
 ```bash
 odor-complaint profile.json
 ```
-
-The complaint desk runs each post through a series of checks and prints any issues found. It uses the same `src` and `debug` fields from your profile (including `mostRecent` and `processOnly` for scoping).
 
 ### Checks
 
@@ -277,24 +382,23 @@ poem-0099:
 ─────────────────────────────────────────────
 ```
 
-### Flow Graph
-
-```
-postScanner -> 'post'
-
-'post' -> gracefulShutdown -> checkPostJson -> checkCoverImage -> checkTooManyFiles -> 'done'
-```
-
-Supports CTRL-C for graceful shutdown -- in-flight checks complete, remaining posts are skipped.
-
 ## Odor Agent
 
-An interactive CLI that sends each post to a local OpenAI-compatible API for tasks like spellcheck, grammar correction, tagging, and description generation.
+An interactive AI assistant that processes each blog post through configurable tasks — spellchecking, tagging, summarization, quality evaluation, and anything else you can describe in a prompt. It works with any OpenAI-compatible API (Ollama, LM Studio, OpenAI, etc.).
 
 ```bash
 odor-agent profile.json            # run all tasks
 odor-agent profile.json spellcheck  # run a single task
+odor-agent profile.json evaluate    # evaluate and auto-fix
 ```
+
+### Getting Started with the Agent
+
+The simplest setup needs just a local Ollama server:
+
+1. Install [Ollama](https://ollama.ai) and pull a model: `ollama pull llama3`
+2. Add an `agent` section to your profile (see below)
+3. Run `odor-agent profile.json`
 
 ### Agent Configuration
 
@@ -305,36 +409,74 @@ Add an `agent` section to your profile:
   "agent": {
     "url": "http://localhost:11434/v1/chat/completions",
     "model": "llama3",
-    "system": "You are a careful editor. Return only the corrected text.",
+    "system": "You are an AI assistant helping improve blog posts.",
     "yolo": false,
+    "contextSize": 2480,
     "tasks": [
       {
         "name": "spellcheck",
         "prompt": "Fix spelling and grammar in the following text.",
-        "target": "text.md"
+        "target": "text.md",
+        "system": "You are a careful proofreader. Return ONLY JSON arrays of corrections.",
+        "strategy": "iterative-spellcheck",
+        "reflect": true
       },
       {
         "name": "tags",
         "prompt": "Choose relevant tags for this post. Return a JSON array of strings.",
-        "target": "post.json:tags"
+        "target": "post.json:tags",
+        "system": "You are a content tagger. Return only a JSON array of lowercase tag strings.",
+        "skipExisting": true,
+        "autoAccept": true
       },
       {
         "name": "description",
         "prompt": "Write a one-sentence summary of this post.",
-        "target": "post.json:description"
+        "target": "post.json:description",
+        "system": "You are a content summarizer. Return only the summary sentence.",
+        "skipExisting": true,
+        "autoAccept": true
+      },
+      {
+        "name": "evaluate",
+        "prompt": "Evaluate this post's quality.",
+        "target": "post.json",
+        "strategy": "evaluate",
+        "autoAccept": true,
+        "evaluate": {
+          "thresholds": { "spelling": 8, "tags": 8, "description": 8 },
+          "subTasks": { "spelling": "spellcheck", "tags": "tags", "description": "description" }
+        }
       }
     ]
   }
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `url` | OpenAI-compatible chat completions endpoint |
-| `model` | Model name to pass in the API request |
-| `system` | System prompt sent with every request |
-| `yolo` | When `true`, auto-accepts all passing results without prompting |
-| `tasks` | Array of tasks to run sequentially |
+### Agent-Level Settings
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `url` | string | *required* | OpenAI-compatible chat completions endpoint |
+| `model` | string | *required* | Model name to pass in the API request |
+| `system` | string | `""` | Default system prompt sent with every request (tasks can override) |
+| `yolo` | boolean | `false` | Auto-accept all passing results without prompting |
+| `contextSize` | number | *none* | Token budget for the model's context window (enables automatic trimming) |
+| `tasks` | array | *required* | Array of task definitions to run sequentially |
+
+### Per-Task Settings
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `name` | string | *required* | Task identifier (used in CLI filter and logs) |
+| `prompt` | string | *required* | The instruction sent to the AI |
+| `target` | string | *required* | Where to write the result (see Target Format below) |
+| `system` | string | agent `system` | Override the system prompt for this task |
+| `strategy` | string | `"default"` | Which strategy to use: `"default"`, `"iterative-spellcheck"`, or `"evaluate"` |
+| `skipExisting` | boolean | `false` | Skip posts where the target field already has a value |
+| `autoAccept` | boolean | `false` | Accept results automatically when sanity checks pass (still shows diff) |
+| `reflect` | boolean | `false` | After accepting, ask the AI what could be improved and save the lesson |
+| `evaluate` | object | *none* | Configuration for the evaluate strategy (see Evaluate Strategy) |
 
 ### Target Format
 
@@ -342,9 +484,9 @@ Each task specifies a `target` that controls where the result is written:
 
 | Target | Behavior |
 |--------|----------|
-| `"text.md"` | Whole-file replacement -- the API response overwrites `text.md` |
-| `"post.json:tags"` | JSON field update -- parses the response and sets the `tags` field in `post.json` |
-| `"post.json:description"` | JSON field update -- sets the `description` field in `post.json` |
+| `"text.md"` | Whole-file replacement — the AI response overwrites `text.md` |
+| `"post.json:tags"` | JSON field update — parses the response and sets the `tags` field in `post.json` |
+| `"post.json:description"` | JSON field update — sets the `description` field |
 
 ### Interactive Mode
 
@@ -368,17 +510,118 @@ For each post, the agent displays the proposed change as a diff (for text target
 
 Set `"yolo": true` to auto-accept all results that pass sanity checks. Failed checks are automatically skipped. No interactive prompts are shown.
 
+### Strategies
+
+Strategies control *how* the agent interacts with the AI for each task. You pick a strategy per task via the `strategy` field.
+
+#### `default` — Ask, Review, Accept
+
+The default strategy sends the post content to the AI, displays the result, and asks you to accept/reject/retry. This is the classic one-shot approach.
+
+Good for: tags, descriptions, any single-response task.
+
+#### `iterative-spellcheck` — Multi-Pass Correction
+
+Instead of asking the AI to rewrite the entire text, this strategy asks for a list of `[wrong, right]` correction pairs, applies them, then re-checks. It loops up to 5 times until the AI reports no more errors.
+
+```
+  [spellcheck] poem-0001: iterative spellcheck
+  iteration 1: 3 correction(s)
+  iteration 2: 1 correction(s)
+  iteration 3: no more corrections
+  4 total correction(s):
+  - Ths is a sentance with erors.
+  + This is a sentence with errors.
+  [1] Yes  [2] No  [3] Abort >
+```
+
+Good for: spelling and grammar correction on long texts, where you want precise word-level changes rather than a full rewrite.
+
+#### `evaluate` — Rate and Auto-Fix
+
+The evaluate strategy asks the AI to rate the post across multiple dimensions (e.g., spelling, tags, description) on a 1-10 scale. For any dimension that scores below your configured threshold, it automatically runs the corresponding sub-task to fix it.
+
+```json
+{
+  "name": "evaluate",
+  "prompt": "Evaluate this post's quality.",
+  "target": "post.json",
+  "strategy": "evaluate",
+  "autoAccept": true,
+  "evaluate": {
+    "thresholds": { "spelling": 8, "tags": 8, "description": 8 },
+    "subTasks": { "spelling": "spellcheck", "tags": "tags", "description": "description" }
+  }
+}
+```
+
+Output looks like:
+
+```
+  [evaluate] poem-0001: evaluating post quality
+  Ratings:
+    spelling: 6/8
+    tags: 9/8
+    description: 5/8
+  Running sub-tasks for: spelling, description
+  → sub-task: spellcheck
+  → sub-task: description
+```
+
+Good for: automated quality gates that check everything at once and only fix what needs fixing.
+
+### Context Budgeting
+
+Small models have small context windows. Set `contextSize` at the agent level to automatically trim long posts to fit. The trimmer keeps the beginning and ending of the text (where important content tends to be) and replaces the middle with `[...trimmed...]`.
+
+```json
+{
+  "agent": {
+    "contextSize": 2480,
+    ...
+  }
+}
+```
+
+The budget accounts for the system prompt, user prompt, and a 400-token reserve for the AI's response. If your post fits, nothing is trimmed.
+
+### Self-Reflection and Lessons
+
+When `reflect` is set to `true` on a task, the agent asks the AI a follow-up question after each accepted result: *"What could be done better next time?"* The answer is saved as a **lesson** in `.odor-lessons.json` next to your profile.
+
+On the next run, accumulated lessons are appended to the system prompt, so the AI gradually improves at your specific content. Lessons from the current run are saved to disk but only take effect on the *next* run (keeping behavior predictable within a single session).
+
+### Auto-Retry on Empty Responses
+
+If the AI returns an empty response (which happens occasionally with local models), the agent automatically retries up to 3 times before giving up. No user interaction needed.
+
+### skipExisting
+
+Set `"skipExisting": true` on a task to skip posts where the target field already has a value. This is handy for backfilling — run the agent on your entire database and it will only process posts that are missing the field.
+
+```json
+{ "name": "tags", "target": "post.json:tags", "skipExisting": true }
+```
+
+### autoAccept
+
+Set `"autoAccept": true` to automatically accept results that pass sanity checks, without prompting. Unlike `yolo` (which is agent-wide), `autoAccept` is per-task — you can auto-accept tags but manually review spellcheck changes.
+
 ### Sanity Checks
 
 Every API response is validated before display:
 
-- **Empty response** -- rejected
-- **Garbled characters** -- control characters, mojibake, or U+FFFD detected -- rejected
-- **Length ratio** -- for text targets, the response must be 50%-200% of the original length (skipped for JSON field targets)
+- **Empty response** — rejected (after 3 auto-retries)
+- **Garbled characters** — control characters, mojibake, or U+FFFD detected — rejected
+- **Length ratio** — for text targets, the response must be 50%-200% of the original length (skipped for JSON field targets)
 
-### Task Sequencing
+### CTRL-C Handling
 
-Tasks run as separate flows sequentially. If spellcheck modifies `text.md`, the tagging task reads the corrected version on its fresh scan. Each task re-scans the post directory from disk.
+The agent uses a progressive shutdown:
+
+- **1st press**: "Shutdown requested — press two more times to terminate" — finishes the current post, skips remaining
+- **2nd press**: "Press one more time to terminate"
+- **3rd press**: Immediate exit
 
 ### Summary and Commit
 
@@ -397,16 +640,6 @@ Commit changes? (y/n) >
 
 In interactive mode, if any changes were accepted, you are offered a git commit. In yolo mode the commit prompt is skipped.
 
-### Flow Graph
-
-```
-postScanner -> 'post'
-
-'post' -> gracefulShutdown -> apiGate(agentTask) -> 'done'
-```
-
-The agent task is wrapped in a `gate(1)` to serialize API calls and prevent readline prompts from interleaving.
-
 ## Programmatic API
 
 Odor exports its library, queue, and kit modules for programmatic use:
@@ -418,8 +651,8 @@ import { setup, resolvePath, interpolatePath, gate, chunk } from 'odor';
 // Queue — capacity-limited work queue with lifecycle events
 import { queue, Queue } from 'odor/queue';
 
-// Kit — flow-control primitives (debounce, throttle, dedupe, batch, accumulate, retry)
-import { accumulate, batch, dedupe, retry } from 'odor/kit';
+// Kit — flow-control primitives
+import { accumulate, batch, dedupe, debounce, throttle, retry } from 'odor/kit';
 ```
 
 ## Development
@@ -433,10 +666,19 @@ src/
   lib/                  # Core library (paths, atomic, manifest, concurrency, html, audio-presets, chunk)
   transforms/           # 14 muriel transform modules
   checks/               # 3 complaint desk checks
-  agents/               # Agent task + sanity check
-  queue/                # Queue class + README
-  kit/                  # Flow-control primitives (debounce, throttle, etc.)
-test/                   # Tests (node:test)
+  agents/               # Agent core + strategies + supporting modules
+    agent-task.js       # Strategy dispatch, skipExisting, context trim, write-back
+    api.js              # API caller with auto-retry on empty responses
+    context-budget.js   # Token estimation and text trimming
+    lessons.js          # Persistent self-reflection lessons
+    sanity-check.js     # Response validation (empty, garbled, length ratio)
+    strategies/
+      default.js        # One-shot ask/review/accept
+      iterative-spellcheck.js  # Multi-pass word-list correction
+      evaluate.js       # Rate post + auto-fix low dimensions
+  queue/                # Queue class
+  kit/                  # Flow-control primitives (debounce, throttle, dedupe, batch, accumulate, retry)
+test/                   # Tests (node:test, 113 tests)
 docs/                   # Example profile
 ```
 

@@ -1,5 +1,12 @@
 // Pure validation functions for agent responses
 
+export function isFieldEmpty(value) {
+  if (value == null) return true;
+  if (typeof value === 'string') return value.trim() === '';
+  if (Array.isArray(value)) return value.length === 0;
+  return false;
+}
+
 export function hasGarbledCharacters(text) {
   // Check for control characters (except common whitespace), mojibake, U+FFFD
   const garbledPattern = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\uFFFD]|[\xC0-\xFF][\x80-\xBF]{0,1}(?=[^\x80-\xBF])/;
