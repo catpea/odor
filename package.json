@@ -1,6 +1,6 @@
 {
   "name": "odor",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Processes thousands of posts with parallel encoding, incremental builds, and atomic writes!",
   "type": "module",
   "engines": {
