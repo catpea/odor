@@ -8,16 +8,23 @@ A static blog generator built on the [muriel](https://www.npmjs.com/package/muri
 npm install odor
 ```
 
+**See all commands:**
+
+```bash
+odor
+```
+
 **Build your blog:**
 
 ```bash
-odor profile.json
+odor-build profile.json
+odor-build profile.json --dry-run
 ```
 
 **Check for problems without building:**
 
 ```bash
-odor-complaint profile.json
+odor-status profile.json
 ```
 
 **Run AI tasks on your posts:**
@@ -25,6 +32,13 @@ odor-complaint profile.json
 ```bash
 odor-agent profile.json            # run all tasks
 odor-agent profile.json spellcheck  # run one task
+```
+
+**Preview the built site:**
+
+```bash
+odor-server profile.json           # HTTP on port 8590
+odor-server profile.json --https   # HTTPS with auto-generated self-signed cert
 ```
 
 ## System Requirements
@@ -59,7 +73,7 @@ database/posts/
 Preview what the build would write without touching disk:
 
 ```bash
-odor --dry-run profile.json
+odor-build --dry-run profile.json
 ```
 
 All `atomicWriteFile` and `atomicCopyFile` calls are intercepted — the build runs to completion but no files are created, modified, or copied. A summary at the end shows the file count that would have been written.
@@ -348,12 +362,12 @@ blog.on('all', packet => {
 
 The theme is a directory of static files copied to the dest root. At minimum it should contain a `style.css`. The HTML templates reference `/style.css` via a `<link>` tag.
 
-## Odor Complaint
+## Odor Status
 
 A sanity checker that scans your post database for common problems without building anything.
 
 ```bash
-odor-complaint profile.json
+odor-status profile.json
 ```
 
 ### Checks
@@ -367,7 +381,7 @@ odor-complaint profile.json
 ### Output
 
 ```
-Odor Complaint Desk
+Odor Status
 Profile: my_blog
 ─────────────────────────────────────────────
 
@@ -640,6 +654,17 @@ Commit changes? (y/n) >
 
 In interactive mode, if any changes were accepted, you are offered a git commit. In yolo mode the commit prompt is skipped.
 
+## Odor Server
+
+A dev server for previewing your built site locally.
+
+```bash
+odor-server profile.json           # HTTP on port 8590
+odor-server profile.json --https   # HTTPS with self-signed cert
+```
+
+Serves the `dest` directory from your profile on `0.0.0.0:8590`, accessible from the local network (useful for XR headset testing). The `--https` flag auto-generates a self-signed certificate in `.odor-certs/` next to your profile (requires `openssl`). Certificates are regenerated when expired.
+
 ## Programmatic API
 
 Odor exports its library, queue, and kit modules for programmatic use:
@@ -662,7 +687,7 @@ import { accumulate, batch, dedupe, debounce, throttle, retry } from 'odor/kit';
 ```
 bin/                    # Thin CLI wrappers (shebang + run())
 src/
-  cli/                  # CLI orchestration (build, complaint, agent)
+  cli/                  # CLI orchestration (build, status, agent, server)
   lib/                  # Core library (paths, atomic, manifest, concurrency, html, audio-presets, chunk)
   transforms/           # 14 muriel transform modules
   checks/               # 3 complaint desk checks

@@ -8,8 +8,10 @@
   },
   "bin": {
     "odor": "bin/odor.js",
-    "odor-complaint": "bin/odor-complaint.js",
-    "odor-agent": "bin/odor-agent.js"
+    "odor-build": "bin/odor-build.js",
+    "odor-status": "bin/odor-status.js",
+    "odor-agent": "bin/odor-agent.js",
+    "odor-server": "bin/odor-server.js"
   },
   "exports": {
     ".": "./src/lib/index.js",
@@ -20,6 +22,7 @@
     "bin/",
     "src/",
     "README.md",
+    "AGENTS.md",
     "LICENSE"
   ],
   "scripts": {

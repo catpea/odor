@@ -65,6 +65,12 @@ export async function run(args) {
   }
 
   // ─────────────────────────────────────────────
+  // Wait for API server
+  // ─────────────────────────────────────────────
+
+  await waitForServer(url);
+
+  // ─────────────────────────────────────────────
   // Lessons preload
   // ─────────────────────────────────────────────
 
@@ -230,4 +236,22 @@ export async function run(args) {
   }
 
   return EXIT_SUCCESS;
+}
+
+async function waitForServer(url) {
+  while (true) {
+    try {
+      await fetch(url, { method: 'HEAD' });
+      return; // any HTTP response means server is up
+    } catch (err) {
+      if (err.cause?.code === 'ECONNREFUSED' || err.cause?.code === 'ECONNRESET' || err.message?.includes('fetch failed')) {
+        console.log(`Cannot reach ${url}`);
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        await new Promise(resolve => rl.question('Press ENTER when the server is ready... ', resolve));
+        rl.close();
+      } else {
+        throw err;
+      }
+    }
+  }
 }

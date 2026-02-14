@@ -24,7 +24,7 @@ export async function run(args) {
 
   const profilePath = args[0];
   if (!profilePath) {
-    console.error('Usage: odor-complaint <profile.json>');
+    console.error('Usage: odor-status <profile.json>');
     return EXIT_FATAL;
   }
 
@@ -52,7 +52,7 @@ export async function run(args) {
   // Checks
   // ─────────────────────────────────────────────
 
-  console.log(`\nOdor Complaint Desk`);
+  console.log(`\nOdor Status`);
   console.log(`Profile: ${profile.profile}`);
   console.log(`─────────────────────────────────────────────\n`);
 

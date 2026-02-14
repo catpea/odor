@@ -36,7 +36,7 @@ export async function run(args, { dryRun = false } = {}) {
 
   const profilePath = args[0];
   if (!profilePath) {
-    console.error('Usage: odor <profile.json>');
+    console.error('Usage: odor-build <profile.json> [--dry-run]');
     return EXIT_FATAL;
   }
 

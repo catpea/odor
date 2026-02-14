@@ -40,15 +40,18 @@ graph.dispose(); // cleanup
 
 ```
 bin/
-  odor.js                          # CLI wrapper → src/cli/build.js
-  odor-complaint.js                # CLI wrapper → src/cli/complaint.js
+  odor.js                          # Help command — lists all subcommands
+  odor-build.js                    # CLI wrapper → src/cli/build.js
+  odor-status.js                   # CLI wrapper → src/cli/status.js
   odor-agent.js                    # CLI wrapper → src/cli/agent.js
+  odor-server.js                   # CLI wrapper → src/cli/server.js
 
 src/
   cli/
     build.js                       # Main build orchestration (flow graph + completion)
-    complaint.js                   # Sanity-check orchestration
-    agent.js                       # AI agent orchestration (SIGINT, lessons, task loop)
+    status.js                      # Sanity-check orchestration
+    agent.js                       # AI agent orchestration (server wait, SIGINT, lessons, task loop)
+    server.js                      # HTTP/HTTPS dev server for previewing built sites
 
   lib/
     index.js                       # Barrel re-export of all lib modules
@@ -128,7 +131,7 @@ postScanner -> skipUnchanged -> 'post'
 
 **Edge 3** generates site-wide output: `homepage`, `pagerizer`, `rssFeed`, and `playlist` run in parallel. After joining, `useTheme` copies theme files.
 
-### Complaint Flow (`src/cli/complaint.js`)
+### Status Flow (`src/cli/status.js`)
 
 ```
 postScanner -> 'post'
