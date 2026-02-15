@@ -1,5 +1,7 @@
 // Extracted API call with auto-retry on empty response
 
+const REQUEST_TIMEOUT_MS = 120_000; // 2 minutes per request
+
 export async function callApi(url, model, system, userMessage, { signal } = {}) {
   const body = {
     model,
@@ -14,11 +16,17 @@ export async function callApi(url, model, system, userMessage, { signal } = {}) 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     if (signal?.aborted) return '';
 
+    // Combine user abort signal with per-request timeout
+    const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+    const combinedSignal = signal
+      ? AbortSignal.any([signal, timeoutSignal])
+      : timeoutSignal;
+
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      signal,
+      signal: combinedSignal,
     });
 
     if (!res.ok) {

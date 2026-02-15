@@ -79,6 +79,11 @@ export default function agentTask({
       subTextContent = '';
     }
 
+    if (!subTextContent || subTextContent.trim() === '') {
+      console.log(`  [${taskDef.name}] ${postId}: skipped sub-task (text.md is empty or missing)`);
+      return { accepted: false, rejected: true, retries: 0, error: null, response: null, newFieldValue: null, abort: false };
+    }
+
     if (contextSize) {
       subTextContent = trimToContextBudget(subTextContent, {
         contextSize, systemPrompt: subSystem, userPrompt: taskDef.prompt,
@@ -148,6 +153,15 @@ export default function agentTask({
       // skipExisting: skip if field already has a value
       if (skipExisting && targetKey && !isFieldEmpty(currentFieldValue)) {
         console.log(`  [${name}] ${postId}: skipped (${targetKey} already set)`);
+        result.rejected = true;
+        packet._agentResult = result;
+        send(packet);
+        return;
+      }
+
+      // Guard: skip posts with empty text content (nothing for the AI to work with)
+      if (!textContent || textContent.trim() === '') {
+        console.log(`  [${name}] ${postId}: skipped (text.md is empty or missing)`);
         result.rejected = true;
         packet._agentResult = result;
         send(packet);

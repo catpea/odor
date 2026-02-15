@@ -36,6 +36,15 @@ export default async function defaultStrategy({
 
     result.response = response;
 
+    // Guard: reject empty API responses before parsing
+    if (!response || response.trim() === '') {
+      console.log(`  \x1b[33mEmpty response from API\x1b[0m`);
+      if (yolo || autoAccept) {
+        result.rejected = true;
+        break;
+      }
+    }
+
     // For JSON field targets, parse the response
     let processedResponse = response;
     let newFieldValue = null;
@@ -43,6 +52,15 @@ export default async function defaultStrategy({
       newFieldValue = parseJsonFieldResponse(response, targetKey);
       processedResponse = JSON.stringify(newFieldValue);
       result.newFieldValue = newFieldValue;
+    }
+
+    // Guard: reject empty field values (parseJsonFieldResponse can produce '' from a non-empty response)
+    if (targetKey && (newFieldValue === '' || newFieldValue == null)) {
+      console.log(`  \x1b[33mParsed field value is empty\x1b[0m`);
+      if (yolo || autoAccept) {
+        result.rejected = true;
+        break;
+      }
     }
 
     // Sanity check
