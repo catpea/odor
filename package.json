@@ -1,6 +1,6 @@
 {
   "name": "odor",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Static blog generator with parallel encoding, incremental builds, atomic writes, and an AI agent for spellcheck, tagging, summarization, and quality evaluation.",
   "type": "module",
   "engines": {
