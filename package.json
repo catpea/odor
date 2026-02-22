@@ -11,7 +11,8 @@
     "odor-build": "bin/odor-build.js",
     "odor-status": "bin/odor-status.js",
     "odor-agent": "bin/odor-agent.js",
-    "odor-server": "bin/odor-server.js"
+    "odor-server": "bin/odor-server.js",
+    "odor-analyze": "bin/odor-analyze.js"
   },
   "exports": {
     ".": "./src/lib/index.js",

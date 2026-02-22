@@ -108,4 +108,97 @@ describe('renderPostCard', () => {
     const html = renderPostCard(post);
     assert.ok(html.includes('#0001:'));
   });
+
+  it('renders play button when audioUrl is present', () => {
+    const post = {
+      coverUrl: '/cover.avif',
+      audioUrl: 'https://example.com/audio.mp3',
+      permalinkUrl: '/permalink/abc/',
+      postId: 'poem-0001',
+      postData: { title: 'With Audio', date: '2024-01-15' }
+    };
+    const html = renderPostCard(post);
+    assert.ok(html.includes('class="post-play"'));
+    assert.ok(html.includes('href="https://example.com/audio.mp3"'));
+  });
+
+  it('omits play button when audioUrl is missing', () => {
+    const post = {
+      coverUrl: '/cover.avif',
+      permalinkUrl: '/permalink/abc/',
+      postId: 'poem-0001',
+      postData: { title: 'No Audio', date: '2024-01-15' }
+    };
+    const html = renderPostCard(post);
+    assert.ok(!html.includes('post-play'));
+  });
+
+  it('renders post-meta with full analysis', () => {
+    const post = {
+      coverUrl: '/cover.avif',
+      permalinkUrl: '/permalink/abc/',
+      postId: 'poem-0001',
+      postData: {
+        title: 'Full Analysis',
+        date: '2024-01-15',
+        analysis: {
+          wordCount: 5421,
+          audioDuration: '00:15:12',
+          featuredUrls: [
+            { text: 'Example', url: 'https://example.com' },
+            { text: 'Other', url: 'https://other.com' },
+            { text: 'Third', url: 'https://third.com' },
+          ],
+        }
+      }
+    };
+    const html = renderPostCard(post);
+    assert.ok(html.includes('class="post-meta"'));
+    assert.ok(html.includes('5,421 words'));
+    assert.ok(html.includes('15:12 minutes'));
+    assert.ok(!html.includes('00:15:12'));
+    assert.ok(html.includes('3 links'));
+
+    // single link → singular
+    const post2 = {
+      ...post,
+      postData: { ...post.postData, analysis: {
+        featuredUrls: [{ text: 'Only', url: 'https://only.com' }],
+      }},
+    };
+    const html2 = renderPostCard(post2);
+    assert.ok(html2.includes('1 link'));
+    assert.ok(!html2.includes('1 links'));
+  });
+
+  it('renders post-meta with partial analysis', () => {
+    const post = {
+      coverUrl: '/cover.avif',
+      permalinkUrl: '/permalink/abc/',
+      postId: 'poem-0001',
+      postData: {
+        title: 'Partial',
+        date: '2024-01-15',
+        analysis: {
+          wordCount: 100,
+        }
+      }
+    };
+    const html = renderPostCard(post);
+    assert.ok(html.includes('class="post-meta"'));
+    assert.ok(html.includes('100 words'));
+    assert.ok(!html.includes('links'));
+    assert.ok(!html.includes('<li>15:12</li>'));
+  });
+
+  it('omits post-meta when no analysis', () => {
+    const post = {
+      coverUrl: '/cover.avif',
+      permalinkUrl: '/permalink/abc/',
+      postId: 'poem-0001',
+      postData: { title: 'No Analysis', date: '2024-01-15' }
+    };
+    const html = renderPostCard(post);
+    assert.ok(!html.includes('post-meta'));
+  });
 });

@@ -36,6 +36,29 @@ export function buildPager(currentPage, totalPages, radius = 5) {
   ];
 }
 
+function renderPostMeta(analysis) {
+  if (!analysis) return '';
+  const items = [];
+
+  if (analysis.audioDuration) {
+    const display = analysis.audioDuration.replace(/^00:/, '');
+    items.push(`<li><small>${display} audio</small></li>`);
+  }
+
+
+  if (analysis.wordCount != null) {
+    items.push(`<li><small>${analysis.wordCount.toLocaleString()} words</small></li>`);
+  }
+
+  if (Array.isArray(analysis.featuredUrls) && analysis.featuredUrls.length > 0) {
+    const n = analysis.featuredUrls.length;
+    items.push(`<li><small>${n} ${n === 1 ? 'link' : 'links'}</small></li>`);
+  }
+
+  if (items.length === 0) return '';
+  return `<ul class="post-meta" aria-label="Post info">\n            ${items.join(' <span class="horizontal-separator">&middot;</span> ')}\n          </ul>`;
+}
+
 export function renderPostCard(post) {
   const dateValue = post?.postData?.date ? new Date(post.postData.date) : null;
   const dateText = dateValue ? dateValue.toLocaleDateString() : "";
@@ -43,7 +66,7 @@ export function renderPostCard(post) {
 
   const tags = Array.isArray(post?.postData?.tags) ? post.postData.tags : [];
   const title = post?.postData?.title ? escapeXml(post.postData.title) : "";
-  const audio = post?.audioResult?.url ? escapeXml(post.audioResult.url) : "";
+  const audio = post?.audioUrl ? escapeXml(post.audioUrl) : "";
   const description = post?.postData?.description
     ? escapeXml(
         post.postData.description
@@ -62,11 +85,12 @@ export function renderPostCard(post) {
 
       ${post?.coverUrl ? `
         <figure class="post-media">
+
           <a class="post-mediaLink" href="${permalink}">
             <img src="${post.coverUrl}" alt="" loading="lazy" />
           </a>
 
-          ${post?.audioResult?.url ? `
+          ${post?.audioUrl ? `
             <a
               class="post-play"
               href="${audio}"
@@ -78,7 +102,10 @@ export function renderPostCard(post) {
       ` : ""}
 
       <header class="post-content">
+
         ${dateText ? `<time datetime="${dateAttr}">${dateText}</time>` : ""}
+        <span class="horizontal-separator">&middot;</span>
+        ${renderPostMeta(post?.postData?.analysis)}
 
         <h2 class="post-title">
           <a href="${permalink}">#${postNumber}: ${title}</a>
@@ -89,6 +116,8 @@ export function renderPostCard(post) {
             ${tags.map(tag => `<li><small>${escapeXml(tag)}</small></li>`).join(" ")}
           </ul>
         ` : ""}
+
+
 
         ${description ? `<p class="post-description"><small>${description}</small></p>` : ""}
       </header>
