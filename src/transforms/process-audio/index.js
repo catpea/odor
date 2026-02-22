@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { interpolatePath, resolvePath, mp3Presets } from '../../lib/index.js';
 
-export default function processAudio(config, debug) {
+export default function processAudio(config, debug, { respectExisting = true } = {}) {
   const preset = config.preset || 'balanced';
   const id3 = config.id3 || {};
 
@@ -26,8 +26,8 @@ export default function processAudio(config, debug) {
 
     const destPath = resolvePath(interpolatePath(config.dest, vars));
 
-    // If output already exists, skip encoding (delete file to force rebuild)
-    if (fs.existsSync(destPath)) {
+    // respectExisting: if output already exists, use it as-is
+    if (respectExisting && fs.existsSync(destPath)) {
       const outputStats = fs.statSync(destPath);
       console.log(`  [audio] ${postId}: exists ${(outputStats.size / 1024 / 1024).toFixed(1)}MB`);
       send({

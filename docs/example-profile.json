@@ -70,7 +70,20 @@
     "intermediate": true
   },
 
+  "respectExisting": {
+    "cover": true,
+    "audio": true
+  },
+
   "text": {},
+
+  "server": {
+    "port": 8590,
+    "static": [
+      "dist/{profile}/docs",
+      "dist/chapters/"
+    ]
+  },
 
   "agent": {
     "url": "http://localhost:11434/v1/chat/completions",

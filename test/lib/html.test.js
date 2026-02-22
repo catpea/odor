@@ -106,6 +106,6 @@ describe('renderPostCard', () => {
       postData: {}
     };
     const html = renderPostCard(post);
-    assert.ok(html.includes('poem-0001'));
+    assert.ok(html.includes('#0001:'));
   });
 });

@@ -13,7 +13,9 @@ import { setup, resolvePath, interpolatePath } from '../lib/index.js';
 const EXIT_SUCCESS = 0;
 const EXIT_FATAL   = 2;
 
-const PORT = 8590;
+// ─────────────────────────────────────────────
+// Reusable API
+// ─────────────────────────────────────────────
 
 export const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -56,6 +58,55 @@ export function safePath(root, requestPath) {
   return resolved;
 }
 
+export function serveStatic(root) {
+  return (req, res, next) => {
+    const url = new URL(req.url, 'http://localhost');
+    const filePath = safePath(root, url.pathname);
+
+    if (!filePath) {
+      res.writeHead(403);
+      res.end('Forbidden');
+      return;
+    }
+
+    let target = filePath;
+    try {
+      const stat = fs.statSync(target);
+      if (stat.isDirectory()) {
+        target = path.join(target, 'index.html');
+        fs.statSync(target); // throws if no index.html
+      }
+    } catch {
+      return next();
+    }
+
+    const ext = path.extname(target).toLowerCase();
+    const mime = MIME_TYPES[ext] || 'application/octet-stream';
+
+    res.writeHead(200, { 'Content-Type': mime });
+    fs.createReadStream(target).pipe(res);
+  };
+}
+
+export function compose(handlers) {
+  return (req, res) => {
+    let i = 0;
+    function next() {
+      if (i >= handlers.length) {
+        res.writeHead(404);
+        res.end('Not Found');
+        return;
+      }
+      handlers[i++](req, res, next);
+    }
+    next();
+  };
+}
+
+// ─────────────────────────────────────────────
+// Internals
+// ─────────────────────────────────────────────
+
 function getLocalIP() {
   const interfaces = os.networkInterfaces();
   for (const name of Object.keys(interfaces)) {
@@ -75,7 +126,6 @@ function ensureCerts(certDir) {
   if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
     needsGen = true;
   } else {
-    // Check expiry
     try {
       const certPem = fs.readFileSync(certPath, 'utf-8');
       const x509 = new X509Certificate(certPem);
@@ -100,39 +150,9 @@ function ensureCerts(certDir) {
   };
 }
 
-function handleRequest(root) {
-  return (req, res) => {
-    const url = new URL(req.url, 'http://localhost');
-    let filePath = safePath(root, url.pathname);
-
-    if (!filePath) {
-      res.writeHead(403);
-      res.end('Forbidden');
-      return;
-    }
-
-    // Directory → index.html
-    try {
-      if (fs.statSync(filePath).isDirectory()) {
-        filePath = path.join(filePath, 'index.html');
-      }
-    } catch {
-      // file doesn't exist, handled below
-    }
-
-    if (!fs.existsSync(filePath)) {
-      res.writeHead(404);
-      res.end('Not Found');
-      return;
-    }
-
-    const ext = path.extname(filePath).toLowerCase();
-    const mime = MIME_TYPES[ext] || 'application/octet-stream';
-
-    res.writeHead(200, { 'Content-Type': mime });
-    fs.createReadStream(filePath).pipe(res);
-  };
-}
+// ─────────────────────────────────────────────
+// CLI
+// ─────────────────────────────────────────────
 
 export async function run(args) {
   const profilePath = args[0];
@@ -155,15 +175,29 @@ export async function run(args) {
     return EXIT_FATAL;
   }
 
-  const root = resolvePath(interpolatePath(profile.dest, { profile }));
+  const serverConfig = profile.server || {};
+  const port = serverConfig.port || 8590;
+  const staticPaths = serverConfig.static || [profile.dest];
 
-  if (!fs.existsSync(root)) {
-    console.error(`Fatal: dest directory does not exist: ${root}`);
+  const roots = staticPaths.map(p =>
+    resolvePath(interpolatePath(p, { profile }))
+  );
+
+  // Warn about missing roots, require at least one
+  const missing = roots.filter(r => !fs.existsSync(r));
+  const existing = roots.filter(r => fs.existsSync(r));
+
+  for (const r of missing) {
+    console.log(`  Warning: static directory not found: ${r}`);
+  }
+
+  if (existing.length === 0) {
+    console.error(`Fatal: no static directories exist`);
     console.error(`Run odor-build first to generate the site.`);
     return EXIT_FATAL;
   }
 
-  const handler = handleRequest(root);
+  const handler = compose(existing.map(root => serveStatic(root)));
   let server;
 
   if (useHttps) {
@@ -178,12 +212,13 @@ export async function run(args) {
   const localIP = getLocalIP();
 
   return new Promise((resolve) => {
-    server.listen(PORT, '0.0.0.0', () => {
+    server.listen(port, '0.0.0.0', () => {
       console.log(`\nOdor Server`);
-      console.log(`Serving: ${root}`);
       console.log(`─────────────────────────────────────────────`);
-      console.log(`  Local:   ${protocol}://localhost:${PORT}`);
-      console.log(`  Network: ${protocol}://${localIP}:${PORT}`);
+      for (const r of existing) console.log(`  Serving: ${r}`);
+      console.log(`─────────────────────────────────────────────`);
+      console.log(`  Local:   ${protocol}://localhost:${port}`);
+      console.log(`  Network: ${protocol}://${localIP}:${port}`);
       console.log(`─────────────────────────────────────────────`);
       console.log(`Press CTRL-C to stop.\n`);
     });

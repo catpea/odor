@@ -37,11 +37,62 @@ export function buildPager(currentPage, totalPages, radius = 5) {
 }
 
 export function renderPostCard(post) {
-  return `    <article class="post">
-      ${post.coverUrl ? `<a href="${post.permalinkUrl}"><img src="${post.coverUrl}" alt="" loading="lazy"></a>` : ``}
-      <div class="post-content">
-        <h2><a href="${post.permalinkUrl}">${post.postData.title || post.postId}</a></h2>
-        <time>${post.postData.date ? new Date(post.postData.date).toLocaleDateString() : ''}</time>
-      </div>
-    </article>`;
+  const dateValue = post?.postData?.date ? new Date(post.postData.date) : null;
+  const dateText = dateValue ? dateValue.toLocaleDateString() : "";
+  const dateAttr = dateValue && !Number.isNaN(+dateValue) ? dateValue.toISOString().slice(0, 10) : "";
+
+  const tags = Array.isArray(post?.postData?.tags) ? post.postData.tags : [];
+  const title = post?.postData?.title ? escapeXml(post.postData.title) : "";
+  const audio = post?.audioResult?.url ? escapeXml(post.audioResult.url) : "";
+  const description = post?.postData?.description
+    ? escapeXml(
+        post.postData.description
+          .replace(/\n/g, " ")
+          .replace(/ /g, " ")
+          .replace(/ +/g, " ")
+          .trim()
+      )
+    : "";
+
+  const postNumber = String(post?.postId ?? "").split(/-/)[1] ?? "";
+  const permalink = post?.permalinkUrl ?? "#";
+
+  return `
+    <article class="post">
+
+      ${post?.coverUrl ? `
+        <figure class="post-media">
+          <a class="post-mediaLink" href="${permalink}">
+            <img src="${post.coverUrl}" alt="" loading="lazy" />
+          </a>
+
+          ${post?.audioResult?.url ? `
+            <a
+              class="post-play"
+              href="${audio}"
+              aria-label="Play audio for #${postNumber}: ${title}"
+              title="Play narrated version"
+            >&#9654;</a>
+          ` : ""}
+        </figure>
+      ` : ""}
+
+      <header class="post-content">
+        ${dateText ? `<time datetime="${dateAttr}">${dateText}</time>` : ""}
+
+        <h2 class="post-title">
+          <a href="${permalink}">#${postNumber}: ${title}</a>
+        </h2>
+
+        ${tags.length ? `
+          <ul class="post-tags" aria-label="Tags">
+            ${tags.map(tag => `<li><small>${escapeXml(tag)}</small></li>`).join(" ")}
+          </ul>
+        ` : ""}
+
+        ${description ? `<p class="post-description"><small>${description}</small></p>` : ""}
+      </header>
+    </article>
+  `.trim();
+
 }

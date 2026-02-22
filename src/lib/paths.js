@@ -13,11 +13,39 @@ export function resolvePath(template) {
 }
 
 export function interpolatePath(str, obj) {
-  return str.replace(/\{([^}]+)\}/g, (match, key) => {
-    if (!(key in obj)) throw new Error(`interpolatePath: unknown key "${key}"`);
-    const val = obj[key];
-    if (val == null) throw new Error(`interpolatePath: "${key}" is ${val}`);
-    if (typeof val === 'object' || typeof val === 'function') return match;
-    return String(val);
-  });
+  const MAX_PASSES = 10;
+  let result = str;
+
+  for (let pass = 0; pass < MAX_PASSES; pass++) {
+    const prev = result;
+    result = result.replace(/\{([^}]+)\}/g, (match, key) => {
+      const val = resolveKey(obj, key);
+      if (val == null) throw new Error(`interpolatePath: "${key}" is ${val}`);
+      if (typeof val === 'object' || typeof val === 'function') return match;
+      return String(val);
+    });
+    if (result === prev) break;
+  }
+
+  return result;
+}
+
+function resolveKey(obj, key) {
+  // Flat lookup (backward compat for simple keys)
+  if (key in obj) return obj[key];
+
+  // Dotted path traversal
+  if (key.includes('.')) {
+    const parts = key.split('.');
+    let current = obj;
+    for (const part of parts) {
+      if (current == null || typeof current !== 'object' || !(part in current)) {
+        throw new Error(`interpolatePath: unknown key "${key}"`);
+      }
+      current = current[part];
+    }
+    return current;
+  }
+
+  throw new Error(`interpolatePath: unknown key "${key}"`);
 }

@@ -6,7 +6,7 @@ import { interpolatePath, resolvePath, atomicCopyFile } from '../../lib/index.js
 
 sharp.concurrency(1);
 
-export default function processCover(config, debug) {
+export default function processCover(config, debug, { respectExisting = true } = {}) {
 
   const { width = 1024, height = 1024, quality = 80, effort = 4, exif = {} } = config;
 
@@ -34,8 +34,8 @@ export default function processCover(config, debug) {
 
     const destPath = resolvePath(interpolatePath(config.dest, vars));
 
-    // If output already exists, skip encoding (delete file to force rebuild)
-    if (fs.existsSync(destPath)) {
+    // respectExisting: if output already exists, use it as-is
+    if (respectExisting && fs.existsSync(destPath)) {
       const stats = fs.statSync(destPath);
       console.log(`  [cover] ${postId}: exists ${(stats.size / 1024).toFixed(1)}KB`);
       send({

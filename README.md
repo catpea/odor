@@ -147,6 +147,26 @@ Odor is driven by a JSON profile. All paths are relative to the profile's parent
 | `{chapter}` | `postData.chapter` from each post's `post.json` |
 | `{id}` | `postData.id` from each post's `post.json` |
 
+### `respectExisting`
+
+When upgrading a site, you may want to preserve already-encoded AVIF and MP3 files in the destination so they are not re-encoded. Set `respectExisting` at the top level of your profile:
+
+```json
+{
+  "respectExisting": {
+    "cover": true,
+    "audio": true
+  }
+}
+```
+
+| Field | Default | Effect |
+|-------|---------|--------|
+| `cover` | `true` | If the destination AVIF already exists, skip encoding and use it as-is |
+| `audio` | `true` | If the destination MP3 already exists, skip encoding and use it as-is |
+
+Both default to `true` — existing output files are preserved. Set to `false` to force re-encoding even when the output already exists.
+
 ### Debug Options
 
 | Field | Effect |
@@ -663,7 +683,42 @@ odor-server profile.json           # HTTP on port 8590
 odor-server profile.json --https   # HTTPS with self-signed cert
 ```
 
-Serves the `dest` directory from your profile on `0.0.0.0:8590`, accessible from the local network (useful for XR headset testing). The `--https` flag auto-generates a self-signed certificate in `.odor-certs/` next to your profile (requires `openssl`). Certificates are regenerated when expired.
+Add a `server` section to your profile to configure port and static directories:
+
+```json
+{
+  "server": {
+    "port": 8590,
+    "static": [
+      "dist/{profile}/docs",
+      "dist/chapters/"
+    ]
+  }
+}
+```
+
+Static directories are stacked in order — when a request comes in, the server tries each directory until it finds the file. This lets you serve HTML pages from one directory and media assets from another. Without a `server` section, the server falls back to serving `dest` on port 8590.
+
+The server listens on `0.0.0.0`, making it accessible from the local network (useful for XR headset testing). The `--https` flag auto-generates a self-signed certificate in `.odor-certs/` next to your profile (requires `openssl`). Certificates are regenerated when expired.
+
+### Server API
+
+The server exports an Express-inspired API for building custom handlers:
+
+```js
+import { serveStatic, compose, safePath, MIME_TYPES } from './src/cli/server.js';
+
+// Serve files from a directory — calls next() if not found
+const handler = serveStatic('/path/to/files');
+
+// Stack multiple static roots — first match wins, 404 if none match
+const app = compose([
+  serveStatic('/path/to/html'),
+  serveStatic('/path/to/assets'),
+]);
+
+http.createServer(app).listen(8590);
+```
 
 ## Programmatic API
 

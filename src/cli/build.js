@@ -93,8 +93,8 @@ export async function run(args, { dryRun = false } = {}) {
       gracefulShutdown(),
 
       [
-        encodingQueue.wrap(processCover(profile.cover, profile.debug)),
-        encodingQueue.wrap(processAudio(profile.audio, profile.debug)),
+        encodingQueue.wrap(processCover(profile.cover, profile.debug, { respectExisting: profile.respectExisting?.cover ?? true })),
+        encodingQueue.wrap(processAudio(profile.audio, profile.debug, { respectExisting: profile.respectExisting?.audio ?? true })),
         copyFiles()
       ],
 

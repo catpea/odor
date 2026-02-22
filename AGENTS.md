@@ -51,7 +51,7 @@ src/
     build.js                       # Main build orchestration (flow graph + completion)
     status.js                      # Sanity-check orchestration
     agent.js                       # AI agent orchestration (server wait, SIGINT, lessons, task loop)
-    server.js                      # HTTP/HTTPS dev server for previewing built sites
+    server.js                      # HTTP/HTTPS dev server (serveStatic, compose, safePath, MIME_TYPES)
 
   lib/
     index.js                       # Barrel re-export of all lib modules
