@@ -29,7 +29,7 @@ const EXIT_SUCCESS = 0;
 const EXIT_PARTIAL = 1;
 const EXIT_FATAL   = 2;
 
-export async function run(args, { dryRun = false } = {}) {
+export async function run(args, { dryRun = false, forcePosts = [] } = {}) {
   // ─────────────────────────────────────────────
   // Configuration
   // ─────────────────────────────────────────────
@@ -64,6 +64,11 @@ export async function run(args, { dryRun = false } = {}) {
     manifest.posts = {};
   }
   manifest.configHash = configHash;
+
+  for (const id of forcePosts) {
+    delete manifest.posts[id];
+    console.log(`Forcing rebuild: ${id}`);
+  }
 
   // ─────────────────────────────────────────────
   // Filtergraph

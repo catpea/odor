@@ -78,6 +78,17 @@ odor-build --dry-run profile.json
 
 All `atomicWriteFile` and `atomicCopyFile` calls are intercepted — the build runs to completion but no files are created, modified, or copied. A summary at the end shows the file count that would have been written.
 
+### `--force-post <post-id>`
+
+Force rebuild of specific posts, bypassing the manifest cache:
+
+```bash
+odor-build profile.json --force-post poem-0042
+odor-build profile.json --force-post poem-0042 --force-post poem-0099
+```
+
+Can be combined with `--dry-run`.
+
 ## Profile Configuration
 
 Odor is driven by a JSON profile. All paths are relative to the profile's parent directory. See `docs/example-profile.json` for a complete example.
@@ -231,6 +242,28 @@ The builder maintains `.odor-manifest.json` in the dest directory. Each post is 
 3. **Rebuild**: Composite hash differs or no manifest entry -- full processing
 
 Profile changes (detected via config hash) trigger a full rebuild.
+
+### Change Detection
+
+The manifest tracks every file inside each post directory — `post.json`, `text.md`, `cover.*`, `audio.*`, and everything under `files/`. Any change to these files (content or metadata) is detected and triggers a rebuild of that post.
+
+However, changes **outside** the post directory are not tracked. For example, if you update a profile setting (like cover quality or audio preset), the config hash changes and a full rebuild happens automatically. But if you modify a shared template, an external asset, or the build tooling itself, the manifest will not notice.
+
+**Deleting the manifest** (`.odor-manifest.json` in your dest directory) forces a full rebuild of every post. This is safe — no source data is lost. The next build simply re-processes everything and writes a fresh manifest. This is the nuclear option when something feels out of sync.
+
+**Forcing a single post** is the targeted alternative. Use `--force-post` to evict a post from the manifest cache so it gets rebuilt:
+
+```bash
+odor-build profile.json --force-post poem-0042
+odor-build profile.json --force-post poem-0042 --force-post poem-0099
+```
+
+This is useful when:
+- You changed something the manifest does not track (a template, a build setting)
+- A previous build was interrupted and left a post in a partial state
+- You want to re-encode a cover or audio file that `respectExisting` would normally skip (combine with `"respectExisting": { "cover": false }`)
+
+**`--force-post` + `--dry-run`** can be combined to preview what would be rebuilt without writing anything.
 
 ## Atomic Writes
 

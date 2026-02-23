@@ -231,7 +231,7 @@ ${artwork ? `    <footer class="artwork-credit">
         ...packet,
         textResult: {
           success: true,
-          path: destPath,
+          path: path.relative(process.cwd(), destPath),
           htmlLength: fullHtml.length
         }
       });

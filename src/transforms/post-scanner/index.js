@@ -6,7 +6,7 @@ export default function postScanner({src, profile}, debug) {
 
   return async send => {
     const srcDir = resolvePath(interpolatePath(src, { profile }));
-    console.log(`Scanning: ${srcDir}`);
+    console.log(`Scanning: ${path.relative(process.cwd(), srcDir) || '.'}`);
 
     const entries = await readdir(srcDir, { withFileTypes: true });
     const postDirs = entries.filter(e => e.isDirectory()).map(e => e.name);

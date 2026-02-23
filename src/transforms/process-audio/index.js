@@ -34,7 +34,7 @@ export default function processAudio(config, debug, { respectExisting = true } =
         ...packet,
         audioResult: {
           success: true,
-          path: destPath,
+          path: path.relative(process.cwd(), destPath),
           url: interpolatePath(config.url, vars),
           size: outputStats.size
         }
@@ -96,7 +96,7 @@ export default function processAudio(config, debug, { respectExisting = true } =
         ...packet,
         audioResult: {
           success: true,
-          path: destPath,
+          path: path.relative(process.cwd(), destPath),
           url: interpolatePath(config.url, vars),
           size: outputStats.size,
           reduction: parseFloat(reduction)

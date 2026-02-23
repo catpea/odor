@@ -42,7 +42,7 @@ export default function processCover(config, debug, { respectExisting = true } =
         ...packet,
         coverResult: {
           success: true,
-          path: destPath,
+          path: path.relative(process.cwd(), destPath),
           url: interpolatePath(config.url, vars),
           size: stats.size
         }
@@ -85,7 +85,7 @@ export default function processCover(config, debug, { respectExisting = true } =
         ...packet,
         coverResult: {
           success: true,
-          path: destPath,
+          path: path.relative(process.cwd(), destPath),
           url: interpolatePath(config.url, vars),
           size: stats.size
         }

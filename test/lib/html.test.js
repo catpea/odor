@@ -155,7 +155,7 @@ describe('renderPostCard', () => {
     const html = renderPostCard(post);
     assert.ok(html.includes('class="post-meta"'));
     assert.ok(html.includes('5,421 words'));
-    assert.ok(html.includes('15:12 minutes'));
+    assert.ok(html.includes('15:12 audio'));
     assert.ok(!html.includes('00:15:12'));
     assert.ok(html.includes('3 links'));
 
