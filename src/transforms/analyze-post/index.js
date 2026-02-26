@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir, writeFile, stat } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { marked } from 'marked';
 
@@ -9,6 +9,21 @@ export default function analyzePost() {
     const { postId, postDir, postData, files } = packet;
 
     try {
+      // ── Skip if inputs haven't changed since last analysis ──
+      if (postData.analysis) {
+        const postJsonMtime = (await stat(path.join(postDir, 'post.json'))).mtimeMs;
+        const inputMtimes = [];
+        if (fs.existsSync(files.text)) inputMtimes.push((await stat(files.text)).mtimeMs);
+        if (files.audio && fs.existsSync(files.audio)) inputMtimes.push((await stat(files.audio)).mtimeMs);
+        if (fs.existsSync(files.filesDir)) inputMtimes.push((await stat(files.filesDir)).mtimeMs);
+
+        if (inputMtimes.length > 0 && inputMtimes.every(mt => mt <= postJsonMtime)) {
+          console.log(`  [analyze] ${postId}: unchanged`);
+          send({ ...packet, _analyzeResult: { updated: false } });
+          return;
+        }
+      }
+
       const analysis = {};
 
       // ── Word count + Featured URLs ──
