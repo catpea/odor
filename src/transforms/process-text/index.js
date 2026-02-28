@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readFile, mkdir } from 'node:fs/promises';
 import { marked } from 'marked';
-import { resolvePath, interpolatePath, atomicWriteFile, escapeXml } from '../../lib/index.js';
+import { resolvePath, interpolatePath, atomicWriteFile, escapeXml, faviconLink } from '../../lib/index.js';
 
 export default function processText() {
   return async (send, packet) => {
@@ -65,6 +65,7 @@ export default function processText() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
   <link rel="stylesheet" href="/style.css">
+  ${faviconLink(profile.favicon)}
 </head>
 <body>
   <article class="permalink">

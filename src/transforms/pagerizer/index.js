@@ -1,5 +1,5 @@
 import { mkdir } from 'node:fs/promises';
-import { resolvePath, interpolatePath, renderPostCard, chunk, buildPager, atomicWriteFile } from '../../lib/index.js';
+import { resolvePath, interpolatePath, renderPostCard, chunk, buildPager, atomicWriteFile, faviconLink } from '../../lib/index.js';
 
 export default function pagerizer({ pp = 24 } = {}) {
 
@@ -55,6 +55,7 @@ ${pager.map(p => p.ariaCurrent
   <title>${profile.title} - Page ${pageNumber}</title>
   <link rel="alternate" type="application/rss+xml" title="${profile.title} Feed" href="/feed.xml">
   <link rel="stylesheet" href="/style.css">
+  ${faviconLink(profile.favicon)}
 </head>
 <body>
 

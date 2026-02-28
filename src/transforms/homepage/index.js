@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { mkdir } from 'node:fs/promises';
-import { resolvePath, interpolatePath, renderPostCard, buildPager, atomicWriteFile } from '../../lib/index.js';
+import { resolvePath, interpolatePath, renderPostCard, buildPager, atomicWriteFile, faviconLink } from '../../lib/index.js';
 
 export default function homepage({ pp = 12 } = {}) {
 
@@ -41,6 +41,7 @@ ${homePager.map(p => p.ariaCurrent
   <title>${profile.title}</title>
   <link rel="alternate" type="application/rss+xml" title="${profile.title} Feed" href="/feed.xml">
   <link rel="stylesheet" href="/style.css">
+  ${faviconLink(profile.favicon)}
 </head>
 <body>
 

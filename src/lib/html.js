@@ -1,3 +1,8 @@
+export function faviconLink(emoji) {
+  if (!emoji) return '';
+  return `<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>${emoji}</text></svg>">`;
+}
+
 export function escapeXml(str) {
   if (!str) return '';
   return str
@@ -84,9 +89,9 @@ export function renderPostCard(post) {
     ${post?.audioUrl ? `<a class="btn play" href="${audio}" aria-label="Play audio for #${postNumber}: ${title}">&#9654;</a>` : ""}
   </figure>` : ""}
   ${dateText ? `<time class="time" datetime="${dateAttr}">${dateText}</time>` : ""}
-  <h2 class="title"><a href="${permalink}">#${postNumber}: ${title}</a></h2>
-  ${tags.length ? `<ul class="tags">${tags.map(tag => `<li class="tag">${escapeXml(tag)}</li>`).join("")}</ul>` : ""}
-  ${description ? `<p class="text">${description}</p>` : ""}
+  <h2 class="title"><a href="${permalink}"><span class="number">#${postNumber}</span>: ${title}</a></h2>
   ${renderPostMeta(post?.postData?.analysis)}
+  ${description ? `<p class="text">${description}</p>` : ""}
+  ${tags.length ? `<p class="tags">${tags.map(tag => `<span class="tag">${escapeXml(tag)}</span>`).join(", ")}</p>` : ""}
 </article>`.trim();
 }
