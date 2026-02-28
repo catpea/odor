@@ -41,22 +41,20 @@ function renderPostMeta(analysis) {
   const items = [];
 
   if (analysis.audioDuration) {
-    const display = analysis.audioDuration.replace(/^00:/, '');
-    items.push(`<li><small>${display} audio</small></li>`);
+    items.push(`<li>${analysis.audioDuration.replace(/^00:/, '')} audio</li>`);
   }
 
-
   if (analysis.wordCount != null) {
-    items.push(`<li><small>${analysis.wordCount.toLocaleString()} words</small></li>`);
+    items.push(`<li>${analysis.wordCount.toLocaleString()} words</li>`);
   }
 
   if (Array.isArray(analysis.featuredUrls) && analysis.featuredUrls.length > 0) {
     const n = analysis.featuredUrls.length;
-    items.push(`<li><small>${n} ${n === 1 ? 'link' : 'links'}</small></li>`);
+    items.push(`<li>${n} ${n === 1 ? 'link' : 'links'}</li>`);
   }
 
   if (items.length === 0) return '';
-  return `<ul class="post-meta" aria-label="Post info">\n            ${items.join(' <span class="horizontal-separator">&middot;</span> ')}\n          </ul>`;
+  return `<ul class="meta" aria-label="Post info">${items.join('')}</ul>`;
 }
 
 export function renderPostCard(post) {
@@ -80,48 +78,15 @@ export function renderPostCard(post) {
   const postNumber = String(post?.postId ?? "").split(/-/)[1] ?? "";
   const permalink = post?.permalinkUrl ?? "#";
 
-  return `
-    <article class="post">
-
-      ${post?.coverUrl ? `
-        <figure class="post-media">
-
-          <a class="post-mediaLink" href="${permalink}">
-            <img src="${post.coverUrl}" alt="" loading="lazy" />
-          </a>
-
-          ${post?.audioUrl ? `
-            <a
-              class="post-play"
-              href="${audio}"
-              aria-label="Play audio for #${postNumber}: ${title}"
-              title="Play narrated version"
-            >&#9654;</a>
-          ` : ""}
-        </figure>
-      ` : ""}
-
-      <header class="post-content">
-
-        ${dateText ? `<time datetime="${dateAttr}">${dateText}</time>` : ""}
-        <span class="horizontal-separator">&middot;</span>
-        ${renderPostMeta(post?.postData?.analysis)}
-
-        <h2 class="post-title">
-          <a href="${permalink}">#${postNumber}: ${title}</a>
-        </h2>
-
-        ${tags.length ? `
-          <ul class="post-tags" aria-label="Tags">
-            ${tags.map(tag => `<li><small>${escapeXml(tag)}</small></li>`).join(" ")}
-          </ul>
-        ` : ""}
-
-
-
-        ${description ? `<p class="post-description"><small>${description}</small></p>` : ""}
-      </header>
-    </article>
-  `.trim();
-
+  return `<article class="post">
+  ${post?.coverUrl ? `<figure class="cover">
+    <a href="${permalink}"><img src="${post.coverUrl}" alt="" loading="lazy"></a>
+    ${post?.audioUrl ? `<a class="btn play" href="${audio}" aria-label="Play audio for #${postNumber}: ${title}">&#9654;</a>` : ""}
+  </figure>` : ""}
+  ${dateText ? `<time class="time" datetime="${dateAttr}">${dateText}</time>` : ""}
+  <h2 class="title"><a href="${permalink}">#${postNumber}: ${title}</a></h2>
+  ${tags.length ? `<ul class="tags">${tags.map(tag => `<li class="tag">${escapeXml(tag)}</li>`).join("")}</ul>` : ""}
+  ${description ? `<p class="text">${description}</p>` : ""}
+  ${renderPostMeta(post?.postData?.analysis)}
+</article>`.trim();
 }

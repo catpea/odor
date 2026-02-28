@@ -118,7 +118,7 @@ describe('renderPostCard', () => {
       postData: { title: 'With Audio', date: '2024-01-15' }
     };
     const html = renderPostCard(post);
-    assert.ok(html.includes('class="post-play"'));
+    assert.ok(html.includes('class="btn play"'));
     assert.ok(html.includes('href="https://example.com/audio.mp3"'));
   });
 
@@ -130,7 +130,7 @@ describe('renderPostCard', () => {
       postData: { title: 'No Audio', date: '2024-01-15' }
     };
     const html = renderPostCard(post);
-    assert.ok(!html.includes('post-play'));
+    assert.ok(!html.includes('btn play'));
   });
 
   it('renders post-meta with full analysis', () => {
@@ -153,7 +153,7 @@ describe('renderPostCard', () => {
       }
     };
     const html = renderPostCard(post);
-    assert.ok(html.includes('class="post-meta"'));
+    assert.ok(html.includes('class="meta"'));
     assert.ok(html.includes('5,421 words'));
     assert.ok(html.includes('15:12 audio'));
     assert.ok(!html.includes('00:15:12'));
@@ -185,7 +185,7 @@ describe('renderPostCard', () => {
       }
     };
     const html = renderPostCard(post);
-    assert.ok(html.includes('class="post-meta"'));
+    assert.ok(html.includes('class="meta"'));
     assert.ok(html.includes('100 words'));
     assert.ok(!html.includes('links'));
     assert.ok(!html.includes('<li>15:12</li>'));
@@ -199,6 +199,6 @@ describe('renderPostCard', () => {
       postData: { title: 'No Analysis', date: '2024-01-15' }
     };
     const html = renderPostCard(post);
-    assert.ok(!html.includes('post-meta'));
+    assert.ok(!html.includes('class="meta"'));
   });
 });
