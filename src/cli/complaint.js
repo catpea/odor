@@ -1,4 +1,4 @@
-// Post Metadata Analysis
+// Sanity Checks for the Post Database
 import { flow } from 'muriel';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -7,7 +7,10 @@ import { setup, requestShutdown } from '../lib/index.js';
 
 import postScanner      from '../transforms/post-scanner/index.js';
 import gracefulShutdown from '../transforms/graceful-shutdown/index.js';
-import analyzePost      from '../transforms/analyze-post/index.js';
+
+import checkPostJson    from '../checks/check-post-json.js';
+import checkCoverImage  from '../checks/check-cover-image.js';
+import checkTooManyFiles from '../checks/check-too-many-files.js';
 
 // Exit codes
 const EXIT_SUCCESS = 0;
@@ -21,7 +24,7 @@ export async function run(args) {
 
   const profilePath = args[0];
   if (!profilePath) {
-    console.error('Usage: odor-analyze <profile.json>');
+    console.error('Usage: odor-complaint <profile.json>');
     return EXIT_FATAL;
   }
 
@@ -41,21 +44,32 @@ export async function run(args) {
   // ─────────────────────────────────────────────
 
   process.on('SIGINT', () => {
-    console.log('\nShutdown requested — finishing in-flight analysis...');
+    console.log('\nShutdown requested — finishing in-flight checks...');
     requestShutdown();
   });
 
   // ─────────────────────────────────────────────
-  // Analysis
+  // Checks
   // ─────────────────────────────────────────────
 
-  console.log(`\nOdor Analyze`);
+  console.log(`\nOdor Complaint Desk`);
   console.log(`Profile: ${profile.profile}`);
   console.log(`─────────────────────────────────────────────\n`);
 
   const blog = flow([
+
     [ postScanner({ src: profile.src, profile }, profile.debug), 'post' ],
-    ['post', gracefulShutdown(), analyzePost(), 'done' ],
+
+    ['post',
+      gracefulShutdown(),
+
+      // src checks
+      checkPostJson(),
+      checkCoverImage({expectRatio: '1:1', minResolution: '1024x1024'}),
+      checkTooManyFiles({maxRecommended: 3}),
+
+    'done'],
+
   ], { context: { profile } });
 
   // ─────────────────────────────────────────────
@@ -63,25 +77,29 @@ export async function run(args) {
   // ─────────────────────────────────────────────
 
   return new Promise(resolve => {
-    let updated = 0;
-    let skipped = 0;
-    let errors = 0;
-    let postsProcessed = 0;
+    let totalComplaints = 0;
+    let postsWithComplaints = 0;
+    let postsChecked = 0;
 
     blog.on('done', packet => {
-      postsProcessed++;
+      postsChecked++;
 
-      if (packet._analyzeResult?.updated) updated++;
-      else if (packet._analyzeResult?.error) errors++;
-      else skipped++;
+      if (packet._complaints?.length) {
+        postsWithComplaints++;
+        totalComplaints += packet._complaints.length;
+        console.log(`${packet.postId}:`);
+        for (const c of packet._complaints) {
+          console.log(`  ${c}`);
+        }
+      }
 
-      if (postsProcessed >= packet._totalPosts) {
+      if (postsChecked >= packet._totalPosts) {
         console.log(`\n─────────────────────────────────────────────`);
-        console.log(`${updated} updated, ${skipped} unchanged, ${errors} error(s) — ${postsProcessed} posts`);
+        console.log(`${totalComplaints} complaint(s) in ${postsWithComplaints} of ${postsChecked} posts`);
         console.log(`─────────────────────────────────────────────\n`);
         blog.dispose();
 
-        resolve(errors > 0 ? EXIT_PARTIAL : EXIT_SUCCESS);
+        resolve(totalComplaints > 0 ? EXIT_PARTIAL : EXIT_SUCCESS);
       }
     });
   });

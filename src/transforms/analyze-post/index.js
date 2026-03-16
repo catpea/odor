@@ -9,10 +9,13 @@ export default function analyzePost() {
     const { postId, postDir, postData, files } = packet;
 
     try {
+
       // ── Skip if inputs haven't changed since last analysis ──
-      if (postData.analysis) {
+      if ( postData.analysis) {
+
         const postJsonMtime = (await stat(path.join(postDir, 'post.json'))).mtimeMs;
         const inputMtimes = [];
+
         if (fs.existsSync(files.text)) inputMtimes.push((await stat(files.text)).mtimeMs);
         if (files.audio && fs.existsSync(files.audio)) inputMtimes.push((await stat(files.audio)).mtimeMs);
         if (fs.existsSync(files.filesDir)) inputMtimes.push((await stat(files.filesDir)).mtimeMs);
@@ -22,7 +25,10 @@ export default function analyzePost() {
           send({ ...packet, _analyzeResult: { updated: false } });
           return;
         }
+
       }
+
+
 
       const analysis = {};
 
@@ -60,15 +66,19 @@ export default function analyzePost() {
       // ── Files by extension ──
       if (fs.existsSync(files.filesDir)) {
         const filesByExt = await countFilesByExtension(files.filesDir);
-        if (Object.keys(filesByExt).length > 0) {
+          analysis.exts = filesByExt;
+      }
+
+      // ── Files in root of files ──
+      if (fs.existsSync(files.filesDir)) {
+        const filesByExt = await listRootFiles(files.filesDir);
           analysis.files = filesByExt;
-        }
       }
 
       // ── Write-back ──
       const existing = postData.analysis;
       if (JSON.stringify(existing) === JSON.stringify(analysis)) {
-        console.log(`  [analyze] ${postId}: unchanged`);
+        console.log(`  [analyze] ${postId}: unchanged (same)`);
         send({ ...packet, _analyzeResult: { updated: false } });
         return;
       }
@@ -122,4 +132,19 @@ async function countFilesByExtension(dir) {
     if (ext) counts[ext] = (counts[ext] || 0) + 1;
   }
   return counts;
+}
+
+
+async function listFilesRecursive(dir) {
+  return   await readdir(dir, { withFileTypes: true, recursive: true } )  ;
+}
+
+
+async function listRootFiles(dir) {
+  const response = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })){
+    if (!entry.isFile()) continue;
+    response.push(entry.name)
+  }
+  return response;
 }

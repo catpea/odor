@@ -91,7 +91,11 @@ export async function run(args, { dryRun = false, forcePosts = [] } = {}) {
 
   const blog = flow([
 
-    [ postScanner({ src: profile.src, profile }, profile.debug), skipUnchanged({...profile.skip, manifest}), 'post' ],
+    [
+      postScanner({ src: profile.src, profile }, profile.debug),
+      //skipUnchanged({...profile.skip, manifest}),
+     'post'
+    ],
 
     ['post',
 

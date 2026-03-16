@@ -1,3 +1,5 @@
+.claude/
+.temp/
 /samples/
 coverage/
 test/tmp/

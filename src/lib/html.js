@@ -41,25 +41,27 @@ export function buildPager(currentPage, totalPages, radius = 5) {
   ];
 }
 
-function renderPostMeta(analysis) {
+function renderPostMeta(post) {
+  const analysis = post?.postData?.analysis;
+
   if (!analysis) return '';
   const items = [];
 
   if (analysis.audioDuration) {
-    items.push(`<li>${analysis.audioDuration.replace(/^00:/, '')} audio</li>`);
+    items.push(`<span class="detail">${analysis.audioDuration.replace(/^00:/, '')} audio duration</span>`);
   }
 
   if (analysis.wordCount != null) {
-    items.push(`<li>${analysis.wordCount.toLocaleString()} words</li>`);
+    items.push(`<span class="detail">${analysis.wordCount.toLocaleString()} words</span>`);
   }
 
   if (Array.isArray(analysis.featuredUrls) && analysis.featuredUrls.length > 0) {
     const n = analysis.featuredUrls.length;
-    items.push(`<li>${n} ${n === 1 ? 'link' : 'links'}</li>`);
+    items.push(`<a href="${post?.permalinkUrl}#links" class="detail primary">${n} ${n === 1 ? 'link' : 'links'}</a>`);
   }
 
   if (items.length === 0) return '';
-  return `<ul class="meta" aria-label="Post info">${items.join('')}</ul>`;
+  return  items.join(' ') ;
 }
 
 export function renderPostCard(post) {
@@ -70,28 +72,32 @@ export function renderPostCard(post) {
   const tags = Array.isArray(post?.postData?.tags) ? post.postData.tags : [];
   const title = post?.postData?.title ? escapeXml(post.postData.title) : "";
   const audio = post?.audioUrl ? escapeXml(post.audioUrl) : "";
-  const description = post?.postData?.description
-    ? escapeXml(
-        post.postData.description
-          .replace(/\n/g, " ")
-          .replace(/ /g, " ")
-          .replace(/ +/g, " ")
-          .trim()
-      )
-    : "";
-
+  const description = post?.postData?.description ? escapeXml( post.postData.description .replace(/\n/g, " ") .replace(/ /g, " ") .replace(/ +/g, " ") .trim() ) : "";
   const postNumber = String(post?.postId ?? "").split(/-/)[1] ?? "";
   const permalink = post?.permalinkUrl ?? "#";
 
-  return `<article class="post">
-  ${post?.coverUrl ? `<figure class="cover">
-    <a href="${permalink}"><img src="${post.coverUrl}" alt="" loading="lazy"></a>
-    ${post?.audioUrl ? `<a class="btn play" href="${audio}" aria-label="Play audio for #${postNumber}: ${title}">&#9654;</a>` : ""}
-  </figure>` : ""}
-  ${dateText ? `<time class="time" datetime="${dateAttr}">${dateText}</time>` : ""}
-  <h2 class="title"><a href="${permalink}"><span class="number">#${postNumber}</span>: ${title}</a></h2>
-  ${renderPostMeta(post?.postData?.analysis)}
+  const hasZoomAvif =  post?.postData?.analysis?.files?.includes('zoom.avif');
+
+    if( post?.postData?.analysis?.files?.length && hasZoomAvif ){
+      console.log(title, hasZoomAvif)
+    }
+
+return `<article class="post">
+  ${post?.coverUrl ? `<figure class="cover"><a href="${permalink}"><img src="${post.coverUrl}" alt="${escapeXml(title)}" loading="lazy"></a> </figure>` : ""}
+  <h2 class="title"><a href="${permalink}"><span class="title-text">${title}</span></a></h2>
+
+  <p class="actions">
+    ${1 ? `<a class="${['action', 'view-image', (hasZoomAvif?'primary':'')].filter(o=>o).join(' ')}" href="${hasZoomAvif ? permalink+'files/zoom.avif' : post.coverUrl}" aria-label="View Image">zoom${hasZoomAvif ? '+' : ''}</a> ` : ""}
+    ${1 ? `<a class="action read-text" href="${permalink}" aria-label="Read Text">read</a> ` : ""}
+    ${post?.audioUrl ? `<a class="action play-audio primary" href="${audio}" aria-label="Play Audio">listen</a> ` : ""}
+  </p>
+
   ${description ? `<p class="text">${description}</p>` : ""}
-  ${tags.length ? `<p class="tags">${tags.map(tag => `<span class="tag">${escapeXml(tag)}</span>`).join(", ")}</p>` : ""}
+  <p class="details">
+  ${dateText ? `<span class="detail"> #${postNumber}</span>` : ""}
+  ${dateText ? `<span class="detail"> published <time class="time" datetime="${dateAttr}">${dateText}</time></span>` : ""}
+  ${renderPostMeta(post)}
+  ${tags.length ? tags.map(tag => `<span class="tag">${escapeXml(tag)}</span>`).join(" ") : ""}
+  </p>
 </article>`.trim();
 }

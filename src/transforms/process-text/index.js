@@ -28,12 +28,17 @@ export default function processText() {
 
     try {
       const markdown = await readFile(files.text, 'utf-8');
-      const html = marked(markdown);
+
+      const html = marked(markdown)
+        .replace(/<hr>/gi, '<hr class="permalink-divider">')
+        .replace(/<p>/gi, '<p class="permalink-paragraph">')
+      ;
 
       const linkRegex = /<a\s+[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
       const seen = new Set();
       const links = [];
       let m;
+
       while ((m = linkRegex.exec(html)) !== null) {
         const href = m[1];
         if (!href || seen.has(href)) continue;
@@ -59,7 +64,7 @@ export default function processText() {
       const artwork = Array.isArray(postData.artwork) && postData.artwork.length > 0 ? postData.artwork : null;
 
       const fullHtml = `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="permalink">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -68,34 +73,47 @@ export default function processText() {
   ${faviconLink(profile.favicon)}
 </head>
 <body>
-  <article class="permalink">
+  <article class="permalink-article">
 ${coverUrl ? `    <figure>
-      <img src="${escapeXml(coverUrl)}" alt="">
-      <h1>${title}</h1>
+      <img class="permalink-image" src="${escapeXml(coverUrl)}" alt="${escapeXml(title)}">
     </figure>
 ` : ''}\
-    <header>
-${!coverUrl ? `      <h1>${title}</h1>\n` : ''}\
-${dateText ? `      <time datetime="${isoDate}">${dateText}</time>` : ''}\
 
-    </header>
-${audioUrl ? `    <audio controls src="${escapeXml(audioUrl)}"></audio>
-` : ''}\
-    <section>
+  ${audioUrl ? `    <audio class="permalink-audio-player" controls src="${escapeXml(audioUrl)}"></audio> ` : ''}
+
+  <header>
+    ${title ? `      <h1 class="permalink-title">${title}</h1>\n` : ''}
+    ${dateText ? `      <time class="permalink-time" datetime="${isoDate}">${dateText}</time>` : ''}
+  </header>
+
+    <section class="permalink-content-body">
 ${html}
     </section>
-${links.length ? `    <footer class="links">
+    <hr class="web-divider">
+    </hr>
+
+${links.length ? `    <footer class="permalink-links">
       <h2>Links</h2>
-${links.map(l => `      <div>${l.text} (${escapeXml(l.domain)})<br><a href="${l.href}">${l.href}</a></div>`).join('\n')}
+      <a id="links"></a>
+        ${
+          links.map(l => `      <div class="permalink-link"><a href="${l.href}">${l.text}<br><small>${l.href}</small></a></div>`).join('\n')
+          //links.map(l => `      <div class="permalink-link"><a href="${l.href}">${l.text}<br><small>${l.href}</small></a> <small>(${escapeXml(l.domain)})</small></div>`).join('\n')
+        }
     </footer>
+     <hr class="web-divider">
 ` : ''}\
-${artwork ? `    <footer class="artwork-credit">
-      artwork ${artwork.map(url => `<a href="${escapeXml(url)}">credit</a>`).join(' ')}
+${artwork ? `    <footer class="permalink-artwork-credit">
+artwork ${artwork.map((url,i) => `<a href="${escapeXml(url)}">credit${ (artwork.length>1?' #'+(i+1):'')}</a>`).join(', ') }
     </footer>
 ` : ''}\
   </article>
 </body>
 </html>`;
+
+
+
+
+
 
       await atomicWriteFile(destPath, fullHtml);
       console.log(`  [text] ${postId}: Generated index.html`);

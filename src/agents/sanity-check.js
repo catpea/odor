@@ -19,7 +19,7 @@ export function sanityCheck(response, original, targetKey) {
   }
 
   if (hasGarbledCharacters(response)) {
-    return { ok: false, reason: 'Response contains garbled or control characters' };
+    return { ok: false, reason: 'Response contains garbled or control characters' +'\n'+ response};
   }
 
   // Length ratio check only for whole-file text targets (no key)

@@ -34,7 +34,7 @@ ${homePager.map(p => p.ariaCurrent
       : '';
 
     const html = `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="homepage">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -46,14 +46,15 @@ ${homePager.map(p => p.ariaCurrent
 <body>
 
   <main class="posts">
-${latestPosts.map(renderPostCard).join('\n')}
+    ${latestPosts.map(renderPostCard).join('\n')}
   </main>
 
 ${pagerHtml}
 
-  <footer>
+  <footer class="homepage-footer">
     <p><a href="/feed.xml">RSS</a></p>
   </footer>
+
 </body>
 </html>`;
 
