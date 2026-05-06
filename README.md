@@ -1,3 +1,8 @@
+# Odor
+XML Driven Static blog generator with parallel encoding, incremental builds, atomic writes, and an AI agent for spellcheck, tagging, summarization, and quality evaluation.
+
+---
+
 ## Start Server
 odor3-server build.xml
 
