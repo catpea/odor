@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { readFile, mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { atomicWriteFile } from './atomic.js';
 
 export function computeConfigHash(profile) {
@@ -16,9 +16,9 @@ export async function loadManifest(manifestPath) {
   }
 }
 
-export async function saveManifest(manifestPath, manifest) {
+export async function saveManifest(ctx, manifestPath, manifest) {
   await mkdir(path.dirname(manifestPath), { recursive: true });
-  await atomicWriteFile(manifestPath, JSON.stringify(manifest, null, 2));
+  await atomicWriteFile(ctx, manifestPath, JSON.stringify(manifest, null, 2));
 }
 
 export function hashFileContent(buffer) {

@@ -1,0 +1,96 @@
+<!-- Catpea Blog Build Settings -->
+
+<Variable name="profile"  value="catpea.github.io"/>
+<Variable name="src"      value="database/posts"/>
+<Variable name="dest"     value="dist/{profile}/docs"/>
+<Variable name="chapter"  value="15"/>
+<Variable name="prefix"   value="poem-"/>
+
+<!-- Site -->
+<Variable name="title"    value="Cat Pea"/>
+<Variable name="favicon"  value="😸"/>
+<Variable name="url"      value="https://catpea.com"/>
+
+<!-- Theme -->
+<Variable name="theme.src"  value="themes/plain"/>
+<Variable name="theme.dest" value="dist/{profile}/docs"/>
+
+<!-- Respect existing outputs (skip re-encoding if file already exists) -->
+<Variable name="respectExisting.cover" value="true"/>
+<Variable name="respectExisting.audio" value="true"/>
+
+<!-- Skip / cache behaviour -->
+<Variable name="skip.fastModificationCheck" value="true"/>
+
+<!-- Header -->
+<Variable name="header.show" value="false"/>
+
+<!-- Pagerizer -->
+<Variable name="pagerizer.pp"   value="24"/>
+<Variable name="pagerizer.dest" value="dist/{profile}/docs"/>
+
+<!-- Server -->
+<Variable name="server.port"   value="8590"/>
+<Variable name="server.static" value="dist/{profile}/docs, dist/chapters"/>
+
+<!-- RSS Feed -->
+<Variable name="feed.dest" value="dist/{profile}/docs/feed.xml"/>
+
+<!-- Cover image processing -->
+<Variable name="cover.dest"    value="dist/chapters/chapter-{chapter}/docs/{id}.avif"/>
+<Variable name="cover.url"     value="https://catpea.github.io/chapter-{chapter}/{id}.avif"/>
+<Variable name="cover.width"   value="1024"/>
+<Variable name="cover.height"  value="1024"/>
+<Variable name="cover.quality" value="80"/>
+<Variable name="cover.effort"  value="9"/>
+<Variable name="cover.exif.IFD0.Copyright"        value="Cat Pea"/>
+<Variable name="cover.exif.IFD0.ImageDescription" value="Cat Pea Blog Post Cover"/>
+
+<!-- Audio processing -->
+<Variable name="audio.dest"   value="dist/chapters/chapter-{chapter}/docs/{id}.mp3"/>
+<Variable name="audio.url"    value="https://catpea.github.io/chapter-{chapter}/{id}.mp3"/>
+<Variable name="audio.preset" value="quality"/>
+<Variable name="audio.id3.artist"       value="Cat Pea"/>
+<Variable name="audio.id3.album_artist" value="Cat Pea"/>
+<Variable name="audio.id3.publisher"    value="catpea.com"/>
+
+<!-- Playlist -->
+<Variable name="playlist.src"          value="dist/chapters/chapter-*/docs/*.mp3"/>
+<Variable name="playlist.url"          value="https://catpea.github.io/chapter-{chapter}/{id}.mp3"/>
+<Variable name="playlist.dest"         value="dist/{profile}/docs/playlist.m3u"/>
+<Variable name="playlist.intermediate" value="true"/>
+
+<!-- Agent (LLM tasks) -->
+<Variable name="agent.url"         value="http://localhost:8191/v1/chat/completions"/>
+<Variable name="agent.model"       value="gpt-oss:20b"/>
+<Variable name="agent.system"      value="You are an AI assistant helping improve blog posts."/>
+<Variable name="agent.yolo"        value="false"/>
+<Variable name="agent.contextSize" value="2480"/>
+
+<Variable name="agent.tasks">
+
+  <Variable name="tags">
+    <Variable name="prompt"       value="Choose relevant tags for this post. Return a JSON array of strings."/>
+    <Variable name="target"       value="post.json:tags"/>
+    <Variable name="system"       value="You are a content tagger. Return only a JSON array of lowercase tag strings."/>
+    <Variable name="skipExisting" value="true"/>
+    <Variable name="autoAccept"   value="true"/>
+  </Variable>
+
+  <Variable name="description">
+    <Variable name="prompt"       value="Write a one-sentence summary of this post."/>
+    <Variable name="target"       value="post.json:description"/>
+    <Variable name="system"       value="You are a content summarizer. Return only the summary sentence."/>
+    <Variable name="skipExisting" value="true"/>
+    <Variable name="autoAccept"   value="true"/>
+  </Variable>
+
+  <Variable name="spellcheck">
+    <Variable name="prompt"   value="Fix spelling and grammar in the following text."/>
+    <Variable name="target"   value="text.md"/>
+    <Variable name="system"   value="You are a careful proofreader. Return ONLY the corrected text."/>
+    <Variable name="strategy" value="iterative-spellcheck"/>
+    <Variable name="reflect"  value="true"/>
+  </Variable>
+
+</Variable>

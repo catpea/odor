@@ -1,5 +1,5 @@
 export const mp3Presets = {
-  highQuality: (src, out) => [
+  hifi: (src, out) => [
     '-hide_banner', '-loglevel', 'error', '-threads', '0', '-i', src,
     '-c:a', 'libmp3lame', '-q:a', '5', '-ar', '48000',
     '-af', 'aresample=resampler=soxr:precision=33:dither_method=triangular',

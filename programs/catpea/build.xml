@@ -1,0 +1,93 @@
+<Program name="catpea-build" version="0.1">
+
+  <Import src="settings.xml"/>
+
+  <Store name="state">
+    <Map name="build.argv"/>
+    <Map name="build.dryRun"/>
+    <Map name="build.forcePosts"/>
+    <Map name="build.manifestPath"/>
+    <Map name="build.configHash"/>
+    <Map name="build.exitCode"/>
+    <Map name="manifest"/>
+    <Map name="posts.scanned"/>
+    <Map name="posts.emitted"/>
+    <Map name="posts.changed"/>
+    <Map name="posts.cached"/>
+    <Map name="posts.rendered"/>
+    <Map name="build.summary"/>
+  </Store>
+
+  <TaskManager name="tasks">
+    <Queue name="cpu"   concurrency="cpu" retries="1"/>
+    <Queue name="files" concurrency="8"   retries="1"/>
+    <Queue name="agent" concurrency="1"   retries="0"/>
+  </TaskManager>
+
+  <!-- ── Main workflow ──────────────────────────────────────────────────── -->
+
+  <Workflow name="main">
+
+    <Action is="read-args"/>
+    <Action is="parse-args"/>
+    <Action is="prepare-build"/>
+
+    <Action is="scan-posts"     save="posts.scanned"/>
+    <Action is="emit-posts"     from="posts.scanned" save="posts.emitted"/>
+    <Action is="skip-unchanged" from="posts.emitted" save="posts.changed"/>
+
+    <ForEach in="posts.changed"
+             as="post"
+             run="post"
+             join="all"
+             collect="post.output"
+             save="posts.rendered"/>
+
+    <Action is="site"/>
+
+  </Workflow>
+
+  <!-- ── Per-post workflow ─────────────────────────────────────────────── -->
+
+  <Workflow name="post">
+    <Item name="post"/>
+
+    <Action is="analyze-post" save="post.analysis"/>
+
+    <TaskGroup name="post-assets" join="all">
+      <Submit queue="cpu"   is="process-audio" save="post.audio"/>
+      <Submit queue="cpu"   is="process-cover" save="post.cover"/>
+      <Submit queue="files" is="copy-files"    save="post.filesResult"/>
+    </TaskGroup>
+
+    <!-- Agent tasks share the same post.json file; lock prevents simultaneous writes. -->
+    <Lock name="post-source" key="${post.postDir}">
+      <Submit queue="agent" is="agent-task" task="tags"        wait="true" save="post.tags"/>
+      <Submit queue="agent" is="agent-task" task="description" wait="true" save="post.description"/>
+    </Lock>
+
+    <Action is="process-text" save="post.text"/>
+    <Action is="verify-post"/>
+    <Action is="collect-post" save="post.output"/>
+
+  </Workflow>
+
+  <!-- ── Site workflow ─────────────────────────────────────────────────── -->
+
+  <Workflow name="site">
+
+    <TaskGroup name="site-outputs" join="all">
+      <Submit queue="files" is="homepage"/>
+      <Submit queue="files" is="pagerizer"/>
+      <Submit queue="files" is="rss-feed"/>
+      <Submit queue="files" is="playlist"/>
+    </TaskGroup>
+
+    <Action is="use-theme"/>
+    <Action is="write-manifest"/>
+    <Action is="summarize-build" save="build.summary"/>
+    <Action is="emit-events"     name="build:done"/>
+
+  </Workflow>
+
+</Program>

@@ -1,53 +1,42 @@
 {
   "name": "odor",
-  "version": "1.0.18",
+  "version": "2.0.0",
   "description": "Static blog generator with parallel encoding, incremental builds, atomic writes, and an AI agent for spellcheck, tagging, summarization, and quality evaluation.",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
   },
   "bin": {
-    "odor": "bin/odor.js",
+    "odor": "bin/odor-build.js",
     "odor-build": "bin/odor-build.js",
-    "odor-status": "bin/odor-status.js",
-    "odor-agent": "bin/odor-agent.js",
-    "odor-server": "bin/odor-server.js",
-    "odor-analyze": "bin/odor-analyze.js",
-    "odor-new": "bin/odor-new.js"
+    "odor-new": "bin/odor-new.js",
+    "odor-server": "bin/odor-server.js"
   },
   "exports": {
-    ".": "./src/lib/index.js",
-    "./queue": "./src/queue/index.js",
-    "./kit": "./src/kit/index.js"
+    ".": "./index.js"
   },
   "files": [
     "bin/",
     "src/",
-    "README.md",
-    "AGENTS.md",
-    "LICENSE"
+    "programs/",
+    "index.js",
+    "README.md"
   ],
   "scripts": {
     "test": "node --test test/**/*.test.js",
-    "test:watch": "node --test --watch test/**/*.test.js",
     "save": "git add .; git commit -m 'Updated Release'; npm version patch; npm publish; git push --follow-tags;"
+  },
+  "dependencies": {
+    "marked": "^17.0.1",
+    "sharp": "^0.34.5"
   },
   "keywords": [
     "blog",
     "static-site",
-    "muriel",
-    "flow",
-    "agent",
-    "ai",
-    "spellcheck",
-    "incremental",
-    "atomic"
+    "xml",
+    "workflow",
+    "symbolic"
   ],
-  "dependencies": {
-    "marked": "^17.0.1",
-    "muriel": "^1.0.5",
-    "sharp": "^0.34.5"
-  },
   "author": "catpea (https://github.com/catpea)",
   "license": "MIT",
   "repository": {

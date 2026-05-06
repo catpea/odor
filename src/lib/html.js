@@ -1,11 +1,72 @@
+import { compile, html } from './tinybars.js';
+
+const faviconTemplate = compile(
+  `<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>{{{emoji}}}</text></svg>">`
+);
+
+const postMetaTemplate = compile(html`\
+{{#if audioDuration}}<span class="badge text-bg-info border"><i class="bi bi-clock me-1" aria-hidden="true"></i>{{audioDuration}} audio</span>{{/if}}\
+{{#if wordCount}}<span class="badge text-bg-info border"><i class="bi bi-file-text me-1" aria-hidden="true"></i>{{wordCount}} words</span>{{/if}}\
+{{#if hasLinks}}<a href="{{permalinkUrl}}#links" class="badge text-bg-primary text-decoration-none"><i class="bi bi-link-45deg me-1" aria-hidden="true"></i>{{linkCount}} {{linkCountText}}</a>{{/if}}
+`);
+
+const postCardTemplate = compile(html`\
+<article class="col">
+  <div class="card h-100 shadow border-0">
+    {{#if coverUrl}}
+      <a href="{{permalink}}" class="ratio ratio-1x1 bg-body-secondary rounded-top overflow-hidden"><img src="{{coverUrl}}" class="card-img-top object-fit-cover" alt="{{title}}" loading="lazy"></a>
+    {{/if}}
+    <div class="card-body d-flex flex-column gap-3">
+      <div>
+        {{#if postNumber}}<p class="text-body-secondary small fw-semibold text-uppercase mb-2">#{{postNumber}}</p>{{/if}}
+        <h2 class="card-title h4 mb-0 text-wrap-balance"><a class="link-body-emphasis text-decoration-none" href="{{permalink}}">{{title}}</a></h2>
+      </div>
+      {{#if description}}<p class="card-text text-body-secondary mb-0">{{description}}</p>{{/if}}
+
+      <div class="d-flex flex-wrap gap-2 mt-auto position-relative z-1">
+        {{#if coverUrl}}<a class="btn {{zoomBtnClass}} btn-sm" href="{{zoomHref}}" aria-label="View image"><i class="bi bi-arrows-fullscreen me-1" aria-hidden="true"></i>{{zoomLabel}}</a>{{/if}}
+        <a class="btn btn-outline-primary btn-sm" href="{{permalink}}" aria-label="Read text"><i class="bi bi-book me-1" aria-hidden="true"></i>Read</a>
+        {{#if audio}}<a class="btn btn-primary btn-sm" href="{{audio}}" aria-label="Play audio"><i class="bi bi-play-circle me-1" aria-hidden="true"></i>Listen</a>{{/if}}
+      </div>
+
+    </div>
+    <div class="card-footer bg-body-accent border-0">
+      <div class="d-flex flex-wrap align-items-center gap-2 small">
+
+      {{#if dateText}}
+          <span class="text-body-secondary">
+            <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>
+            <time datetime="{{dateAttr}}">{{dateText}}</time>
+            </span>
+        {{/if}}
+
+        {{{postMeta}}}
+        {{#each tags}}<span class="badge rounded-pill text-bg-secondary">{{this}}</span>{{/each}}
+      </div>
+    </div>
+  </div>
+</article>`);
+
 export function faviconLink(emoji) {
   if (!emoji) return '';
-  return `<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>${emoji}</text></svg>">`;
+  return faviconTemplate({ emoji });
 }
 
-export function escapeXml(str) {
-  if (!str) return '';
-  return str
+export function bootstrapHeadAssets() {
+  return (
+    `<link rel="stylesheet" href="/bootstrap.min.css">\n` +
+    `  <link rel="stylesheet" href="/bootstrap-icons.min.css">\n` +
+    `  <link rel="stylesheet" href="/theme.css">\n  `
+  );
+}
+
+export function bootstrapBodyScript() {
+  return '<script src="/bootstrap.bundle.min.js"></script>';
+}
+
+export function escapeXml(value) {
+  if (!value) return '';
+  return String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -16,88 +77,76 @@ export function escapeXml(str) {
 export function buildPager(currentPage, totalPages, radius = 5) {
   if (totalPages <= 1) return [];
 
-  // Small page count: list all pages descending
-  const window = radius * 2 + 1;
-  if (totalPages <= window) {
+  const windowSize = radius * 2 + 1;
+  if (totalPages <= windowSize) {
     return Array.from({ length: totalPages }, (_, i) => {
-      const pn = totalPages - i;
-      return { text: `${pn}`, url: `page-${pn}.html`, ariaCurrent: pn === currentPage, pageNum: pn };
+      const pageNum = totalPages - i;
+      return { text: `${pageNum}`, url: `page-${pageNum}.html`, ariaCurrent: pageNum === currentPage, pageNum };
     });
   }
 
-  // Large page count: circular window centered on currentPage
   const pages = [];
   for (let offset = -radius; offset <= radius; offset++) {
-    const pn = ((currentPage - 1 + offset + totalPages) % totalPages) + 1;
-    pages.push({ text: `${pn}`, url: `page-${pn}.html`, ariaCurrent: pn === currentPage, pageNum: pn });
+    const pageNum = ((currentPage - 1 + offset + totalPages) % totalPages) + 1;
+    pages.push({ text: `${pageNum}`, url: `page-${pageNum}.html`, ariaCurrent: pageNum === currentPage, pageNum });
   }
+
   const low = currentPage - radius;
   const high = currentPage + radius;
   const wrapped = pages.filter(p => p.pageNum < low || p.pageNum > high);
   const main = pages.filter(p => p.pageNum >= low && p.pageNum <= high);
   return [
     ...wrapped.sort((a, b) => b.pageNum - a.pageNum),
-    ...main.sort((a, b) => b.pageNum - a.pageNum)
+    ...main.sort((a, b) => b.pageNum - a.pageNum),
   ];
 }
 
-function renderPostMeta(post) {
+function buildPostMetaCtx(post) {
   const analysis = post?.postData?.analysis;
+  if (!analysis) return null;
 
-  if (!analysis) return '';
-  const items = [];
-
-  if (analysis.audioDuration) {
-    items.push(`<span class="detail">${analysis.audioDuration.replace(/^00:/, '')} audio duration</span>`);
-  }
-
-  if (analysis.wordCount != null) {
-    items.push(`<span class="detail">${analysis.wordCount.toLocaleString()} words</span>`);
-  }
-
-  if (Array.isArray(analysis.featuredUrls) && analysis.featuredUrls.length > 0) {
-    const n = analysis.featuredUrls.length;
-    items.push(`<a href="${post?.permalinkUrl}#links" class="detail primary">${n} ${n === 1 ? 'link' : 'links'}</a>`);
-  }
-
-  if (items.length === 0) return '';
-  return  items.join(' ') ;
+  const linkCount = Array.isArray(analysis.featuredUrls) ? analysis.featuredUrls.length : 0;
+  return {
+    audioDuration: analysis.audioDuration?.replace(/^00:/, '') ?? '',
+    wordCount: analysis.wordCount != null ? Number(analysis.wordCount).toLocaleString() : '',
+    hasLinks: linkCount > 0,
+    linkCount,
+    linkCountText: linkCount === 1 ? 'link' : 'links',
+    permalinkUrl: post?.permalinkUrl ?? '',
+  };
 }
 
 export function renderPostCard(post) {
   const dateValue = post?.postData?.date ? new Date(post.postData.date) : null;
-  const dateText = dateValue ? dateValue.toLocaleDateString() : "";
-  const dateAttr = dateValue && !Number.isNaN(+dateValue) ? dateValue.toISOString().slice(0, 10) : "";
-
+  const dateText = dateValue ? dateValue.toLocaleDateString() : '';
+  const dateAttr = dateValue && !Number.isNaN(+dateValue) ? dateValue.toISOString().slice(0, 10) : '';
   const tags = Array.isArray(post?.postData?.tags) ? post.postData.tags : [];
-  const title = post?.postData?.title ? escapeXml(post.postData.title) : "";
-  const audio = post?.audioUrl ? escapeXml(post.audioUrl) : "";
-  const description = post?.postData?.description ? escapeXml( post.postData.description .replace(/\n/g, " ") .replace(/ /g, " ") .replace(/ +/g, " ") .trim() ) : "";
-  const postNumber = String(post?.postId ?? "").split(/-/)[1] ?? "";
-  const permalink = post?.permalinkUrl ?? "#";
+  const permalink = post?.permalinkUrl ?? '#';
+  const description = post?.postData?.description
+    ? post.postData.description.replace(/\n/g, ' ').replace(/ +/g, ' ').trim()
+    : '';
+  const postNumber = String(post?.postId ?? '').split(/-/)[1] ?? '';
+  const hasZoomAvif = post?.postData?.analysis?.files?.includes('zoom.avif');
+  const zoomHref = hasZoomAvif ? `${permalink}files/zoom.avif` : (post?.coverUrl || permalink);
 
-  const hasZoomAvif =  post?.postData?.analysis?.files?.includes('zoom.avif');
+  const metaCtx = buildPostMetaCtx(post);
+  const postMeta = metaCtx ? postMetaTemplate(metaCtx).trim() : '';
 
-    if( post?.postData?.analysis?.files?.length && hasZoomAvif ){
-      console.log(title, hasZoomAvif)
-    }
+  const ctx = {
+    permalink,
+    title: post?.postData?.title ?? post?.postId ?? '',
+    description,
+    audio: post?.audioUrl ?? '',
+    postNumber,
+    dateText,
+    dateAttr,
+    coverUrl: post?.coverUrl ?? '',
+    zoomHref,
+    zoomBtnClass: hasZoomAvif ? 'btn-primary' : 'btn-outline-secondary',
+    zoomLabel: hasZoomAvif ? 'Zoom+' : 'Zoom',
+    tags,
+    postMeta,
+  };
 
-return `<article class="post">
-  ${post?.coverUrl ? `<figure class="cover"><a href="${permalink}"><img src="${post.coverUrl}" alt="${escapeXml(title)}" loading="lazy"></a> </figure>` : ""}
-  <h2 class="title"><a href="${permalink}"><span class="title-text">${title}</span></a></h2>
-
-  <p class="actions">
-    ${1 ? `<a class="${['action', 'view-image', (hasZoomAvif?'primary':'')].filter(o=>o).join(' ')}" href="${hasZoomAvif ? permalink+'files/zoom.avif' : post.coverUrl}" aria-label="View Image">zoom${hasZoomAvif ? '+' : ''}</a> ` : ""}
-    ${1 ? `<a class="action read-text" href="${permalink}" aria-label="Read Text">read</a> ` : ""}
-    ${post?.audioUrl ? `<a class="action play-audio primary" href="${audio}" aria-label="Play Audio">listen</a> ` : ""}
-  </p>
-
-  ${description ? `<p class="text">${description}</p>` : ""}
-  <p class="details">
-  ${dateText ? `<span class="detail"> #${postNumber}</span>` : ""}
-  ${dateText ? `<span class="detail"> published <time class="time" datetime="${dateAttr}">${dateText}</time></span>` : ""}
-  ${renderPostMeta(post)}
-  ${tags.length ? tags.map(tag => `<span class="tag">${escapeXml(tag)}</span>`).join(" ") : ""}
-  </p>
-</article>`.trim();
+  return postCardTemplate(ctx).trim();
 }
