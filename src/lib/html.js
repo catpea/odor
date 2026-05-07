@@ -47,9 +47,10 @@ const postCardTemplate = compile(html`\
   </div>
 </article>`);
 
-export function faviconLink(emoji) {
+export function faviconLink(emoji, templates) {
   if (!emoji) return '';
-  return faviconTemplate({ emoji });
+  const tmpl = templates ? compile(templates.favicon) : faviconTemplate;
+  return tmpl({ emoji });
 }
 
 export function bootstrapHeadAssets() {
@@ -116,7 +117,10 @@ function buildPostMetaCtx(post) {
   };
 }
 
-export function renderPostCard(post) {
+export function renderPostCard(post, templates) {
+  const postMetaTmpl = templates ? compile(templates.postMeta) : postMetaTemplate;
+  const postCardTmpl = templates ? compile(templates.postCard) : postCardTemplate;
+
   const dateValue = post?.postData?.date ? new Date(post.postData.date) : null;
   const dateText = dateValue ? dateValue.toLocaleDateString() : '';
   const dateAttr = dateValue && !Number.isNaN(+dateValue) ? dateValue.toISOString().slice(0, 10) : '';
@@ -130,7 +134,7 @@ export function renderPostCard(post) {
   const zoomHref = hasZoomAvif ? `${permalink}files/zoom.avif` : (post?.coverUrl || permalink);
 
   const metaCtx = buildPostMetaCtx(post);
-  const postMeta = metaCtx ? postMetaTemplate(metaCtx).trim() : '';
+  const postMeta = metaCtx ? postMetaTmpl(metaCtx).trim() : '';
 
   const ctx = {
     permalink,
@@ -148,5 +152,5 @@ export function renderPostCard(post) {
     postMeta,
   };
 
-  return postCardTemplate(ctx).trim();
+  return postCardTmpl(ctx).trim();
 }

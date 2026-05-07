@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" class="h-100" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}} - Page {{pageNumber}}</title>
+  <link rel="alternate" type="application/rss+xml" title="{{title}} Feed" href="/feed.xml">
+  {{{headAssets}}}
+  {{{favicon}}}
+</head>
+<body class="text-body min-vh-100">
+  <main class="container-fluid py-5">
+    <header class="row justify-content-center text-center mb-5">
+      <div class="col-lg-8">
+        <p class="text-primary fw-semibold text-uppercase small mb-2">Archive</p>
+        <h1 class="display-5 fw-bold mb-3">{{title}}</h1>
+        <p class="lead text-body-secondary mb-0">Page {{pageNumber}} of {{totalPages}}</p>
+      </div>
+    </header>
+
+    <section class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4" aria-label="Archive posts">
+{{{postsHtml}}}
+    </section>
+
+    <nav class="d-flex justify-content-between align-items-center gap-3 mt-5" aria-label="Adjacent archive pages">
+      {{{newerNav}}}
+      <span class="badge text-bg-light border">Page {{pageNumber}} of {{totalPages}}</span>
+      {{{olderNav}}}
+    </nav>
+
+    <div class="mt-4">
+{{{pagerHtml}}}
+    </div>
+
+    <footer class="d-flex flex-wrap justify-content-center gap-2 mt-5">
+      <a class="btn btn-outline-primary" href="/feed.xml"><i class="bi bi-rss me-1" aria-hidden="true"></i>RSS Feed</a>
+    </footer>
+  </main>
+  {{{bodyScript}}}
+</body>
+</html>

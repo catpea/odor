@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { mkdir, readFile } from 'node:fs/promises';
-import { compile, html } from '../../lib/tinybars.js';
+import { compile } from '../../lib/tinybars.js';
 import { atomicWriteFile } from '../../lib/atomic.js';
 import { resolvePath, interpolatePath } from '../../lib/paths.js';
 import { bootstrapBodyScript, bootstrapHeadAssets, escapeXml, faviconLink } from '../../lib/html.js';
@@ -16,105 +16,25 @@ export const manifest = {
   retries: 0,
 };
 
-// ── Article template ──────────────────────────────────────────────────────────
-
-const articlePageTemplate = compile(html`\
-<!DOCTYPE html>
-<html lang="en" class="h-100" data-bs-theme="dark">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{title}}</title>
-  {{{headAssets}}}
-  {{{favicon}}}
-</head>
-<body class="bg-body-tertiary text-body min-vh-100">
-  <main class="container py-5">
-    <article class="row justify-content-center">
-
-      <div class="col-lg-10 col-xl-8">
-
-        <nav class="mb-4" aria-label="Post navigation">
-          <a class="btn btn-outline-secondary btn-sm" href="/"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i><i class="bi bi-house me-1" aria-hidden="true"></i></a>
-        </nav>
-
-        <div class="card border-0 shadow-sm overflow-hidden mb-3">
-
-          {{{coverImage}}}
-
-          <div class="card-body p-4 p-md-5">
-
-            {{#if audio}}
-              <audio class="w-100 mb-4" controls src="{{audio}}"></audio>
-            {{/if}}
-
-            <nav aria-label="breadcrumb">
-              <ol class="breadcrumb">
-                <li class="breadcrumb-item fw-lighter">Chapter {{chapter}}</li>
-                <li class="breadcrumb-item fw-lighter active">Post #{{postNumber}}</li>
-              </ol>
-            </nav>
-            <header class="mb-5">
-              {{#if title}}<h1 class="display-5 fw-bold lh-1 mb-3 text-wrap-balance">{{title}}</h1>{{/if}}
-              {{#if dateText}}<p class="text-body-secondary mb-0"><i class="bi bi-calendar3 me-2" aria-hidden="true"></i><time datetime="{{isoDate}}">{{dateText}}</time></p>{{/if}}
-            </header>
-
-            <section class="d-grid gap-3">
-            {{{contentHtml}}}
-            </section>
-
-          </div>
-        </div>
-
-        {{#if hasLinks}}
-          <div class="card border-0 shadow-sm overflow-hidden mb-3">
-              <div class="card-body">
-                <h2 id="links" class="h4 mb-3"><i class="bi bi-link-45deg me-2" aria-hidden="true"></i>Links</h2>
-              </div>
-              <ul class="list-group list-group-flush">
-                {{#each links}}
-                  <li class="list-group-item">
-                    <a class="text-decoration-none my-2" href="{{href}}">
-                      <span class="fw-semibold text-secondary"><i class="bi bi-link text-warning"></i> {{text}}</span>
-                      <small class="d-block text-body-secondary fw-lighter mt-2">{{href}}</small>
-                    </a>
-                  </li>
-                {{/each}}
-              </ul>
-          </div>
-        {{/if}}
-
-        {{#if hasArtwork}}
-          <div class="card border-0 shadow-sm overflow-hidden mb-3">
-              <div class="card-body">
-                <h2 class="h5 mb-3"><i class="bi bi-palette me-2" aria-hidden="true"></i>Artwork</h2>
-              </div>
-              <ul class="list-group list-group-flush">
-                {{#each artworkItems}}
-                <li class="list-group-item">
-                  <a class="text-decoration-none" href="{{url}}"><i class="bi bi-image text-secondary me-2" aria-hidden="true"></i><small class="text-secondary">{{url}}</small></a>
-                </li>
-                {{/each}}
-              </ul>
-          </div>
-        {{/if}}
-
-      </div>
-    </article>
-  </main>
-  {{{bodyScript}}}
-</body>
-</html>`);
-
 // ── Markdown ──────────────────────────────────────────────────────────────────
 
 async function renderMarkdown(markdown) {
   try {
     const mod = await import('marked');
-    return mod.marked(markdown);
+    const fn = mod.marked?.parse ?? mod.marked ?? mod.default?.parse ?? mod.default;
+    if (typeof fn !== 'function') throw new Error('marked not usable');
+    return await fn(markdown);
   } catch {
     return fallbackMarkdown(markdown);
   }
+}
+
+function inlineMarkdown(escaped) {
+  return escaped
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+    .replace(/\*\*([^*\n]+)\*\*/g,       '<strong>$1</strong>')
+    .replace(/\*([^*\n]+)\*/g,           '<em>$1</em>')
+    .replace(/`([^`\n]+)`/g,             '<code>$1</code>');
 }
 
 function fallbackMarkdown(markdown) {
@@ -122,9 +42,21 @@ function fallbackMarkdown(markdown) {
     const t = block.trim();
     if (!t) return '';
     if (/^---+$/.test(t)) return '<hr>';
-    if (t.startsWith('# '))  return `<h1>${escapeXml(t.slice(2))}</h1>`;
-    if (t.startsWith('## ')) return `<h2>${escapeXml(t.slice(3))}</h2>`;
-    return `<p>${escapeXml(t).replace(/\n/g, '<br>')}</p>`;
+    if (t.startsWith('# '))   return `<h1>${inlineMarkdown(escapeXml(t.slice(2)))}</h1>`;
+    if (t.startsWith('## '))  return `<h2>${inlineMarkdown(escapeXml(t.slice(3)))}</h2>`;
+    if (t.startsWith('### ')) return `<h3>${inlineMarkdown(escapeXml(t.slice(4)))}</h3>`;
+
+    const lines = t.split('\n');
+    if (lines.every(l => /^[*-] /.test(l.trim()))) {
+      const items = lines.map(l => `<li>${inlineMarkdown(escapeXml(l.trim().slice(2)))}</li>`).join('');
+      return `<ul>${items}</ul>`;
+    }
+    if (lines.every(l => /^\d+\. /.test(l.trim()))) {
+      const items = lines.map(l => `<li>${inlineMarkdown(escapeXml(l.trim().replace(/^\d+\. /, '')))}</li>`).join('');
+      return `<ol>${items}</ol>`;
+    }
+
+    return `<p>${inlineMarkdown(escapeXml(t)).replace(/\n/g, '<br>')}</p>`;
   }).join('\n');
 }
 
@@ -140,7 +72,7 @@ function decorateMarkdownHtml(html) {
     .replace(/<ol>/gi,         '<ol class="list-group list-group-numbered list-group-flush mb-3">')
     .replace(/<li>/gi,         '<li class="list-group-item px-0 bg-transparent fs-5">')
     .replace(/<blockquote>/gi, '<blockquote class="blockquote border-start border-4 ps-3 text-body-secondary">')
-    .replace(/<a /gi,          '<a class="link-primary link-offset-2 link-underline-opacity-25 link-underline-opacity-100-hover" ');
+    .replace(/<a /gi,          '<a class="link-info link-offset-2 link-underline-opacity-25 link-underline-opacity-100-hover" ');
 }
 
 function collectLinks(html) {
@@ -160,7 +92,7 @@ function collectLinks(html) {
 
 // ── Handle ────────────────────────────────────────────────────────────────────
 
-export async function handle({ ctx, frame, signal }) {
+export async function handle({ ctx, store, frame, signal }) {
   signal.throwIfAborted();
 
   const post        = frame.local.get('post');
@@ -168,8 +100,11 @@ export async function handle({ ctx, frame, signal }) {
   const audioResult = frame.local.get('post.audio') ?? {};
 
   const { postId, postDir, guid, chapter, postData, files } = post;
-  const profile  = ctx.context;
-  const vars     = { ...profile, profile: profile.profile, ...postData, id: postId, guid, chapter };
+  const profile   = ctx.context;
+  const vars      = { ...profile, profile: profile.profile, ...postData, id: postId, guid, chapter };
+  const templates = store.get('templates');
+  if (!templates) throw new Error('[process-text] No templates loaded — configure template.src in settings.xml');
+  const localArticlePageTemplate = compile(templates.articlePage);
 
   if (!fs.existsSync(files.text)) {
     console.log(`  [text] ${postId}: No text.md`);
@@ -209,7 +144,7 @@ export async function handle({ ctx, frame, signal }) {
       chapter,
       title:      postData.title || postId,
       headAssets: bootstrapHeadAssets(),
-      favicon:    faviconLink(profile.favicon),
+      favicon:    faviconLink(profile.favicon, templates),
       bodyScript: bootstrapBodyScript(),
       audio:      audioUrl,
       dateText,
@@ -222,7 +157,7 @@ export async function handle({ ctx, frame, signal }) {
       hasArtwork:  artworkItems.length > 0,
     };
 
-    const fullHtml = articlePageTemplate(tmplCtx);
+    const fullHtml = localArticlePageTemplate(tmplCtx);
     await atomicWriteFile(ctx, destPath, fullHtml);
     console.log(`  [text] ${postId}: Generated index.html`);
     return { success: true, path: path.relative(process.cwd(), destPath), htmlLength: fullHtml.length };

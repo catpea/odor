@@ -1,0 +1,35 @@
+<article class="col">
+  <div class="card h-100 shadow border-0">
+    {{#if coverUrl}}
+      <a href="{{permalink}}" class="ratio ratio-1x1 bg-body-secondary rounded-top overflow-hidden"><img src="{{coverUrl}}" class="card-img-top object-fit-cover" alt="{{title}}" loading="lazy"></a>
+    {{/if}}
+    <div class="card-body d-flex flex-column gap-3">
+      <div>
+        {{#if postNumber}}<p class="text-body-secondary small fw-semibold text-uppercase mb-2">#{{postNumber}}</p>{{/if}}
+        <h2 class="card-title h4 mb-0 text-wrap-balance"><a class="link-body-emphasis text-decoration-none" href="{{permalink}}">{{title}}</a></h2>
+      </div>
+      {{#if description}}<p class="card-text text-body-secondary mb-0">{{description}}</p>{{/if}}
+
+      <div class="d-flex flex-wrap gap-2 mt-auto position-relative z-1">
+        {{#if coverUrl}}<a class="btn {{zoomBtnClass}} btn-sm" href="{{zoomHref}}" aria-label="View image"><i class="bi bi-arrows-fullscreen me-1" aria-hidden="true"></i>{{zoomLabel}}</a>{{/if}}
+        <a class="btn btn-outline-primary btn-sm" href="{{permalink}}" aria-label="Read text"><i class="bi bi-book me-1" aria-hidden="true"></i>Read</a>
+        {{#if audio}}<a class="btn btn-primary btn-sm" href="{{audio}}" aria-label="Play audio"><i class="bi bi-play-circle me-1" aria-hidden="true"></i>Listen</a>{{/if}}
+      </div>
+
+    </div>
+    <div class="card-footer bg-body-accent border-0">
+      <div class="d-flex flex-wrap align-items-center gap-2 small">
+
+      {{#if dateText}}
+          <span class="text-body-secondary">
+            <i class="bi bi-calendar3 me-1" aria-hidden="true"></i>
+            <time datetime="{{dateAttr}}">{{dateText}}</time>
+            </span>
+        {{/if}}
+
+        {{{postMeta}}}
+        {{#each tags}}<span class="badge rounded-pill text-bg-secondary">{{this}}</span>{{/each}}
+      </div>
+    </div>
+  </div>
+</article>

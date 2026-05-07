@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en" class="h-100" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{title}}</title>
+  {{{headAssets}}}
+  {{{favicon}}}
+</head>
+<body class="text-body min-vh-100">
+  <main class="container py-5">
+    <article class="row justify-content-center">
+
+      <div class="col-lg-10 col-xl-8">
+
+        <nav class="mb-4" aria-label="Post navigation">
+          <a class="btn btn-outline-secondary btn-sm" href="/"><i class="bi bi-arrow-left me-1" aria-hidden="true"></i><i class="bi bi-house me-1" aria-hidden="true"></i></a>
+        </nav>
+
+        <div class="card border-0 shadow-sm overflow-hidden mb-3">
+
+          {{{coverImage}}}
+
+          <div class="card-body p-4 p-md-5">
+
+            {{#if audio}}
+              <audio class="w-100 mb-4" controls src="{{audio}}"></audio>
+            {{/if}}
+
+            <nav aria-label="breadcrumb">
+              <ol class="breadcrumb">
+                <li class="breadcrumb-item fw-lighter">Chapter {{chapter}}</li>
+                <li class="breadcrumb-item fw-lighter active">Post #{{postNumber}}</li>
+              </ol>
+            </nav>
+            <header class="mb-5">
+              {{#if title}}<h1 class="display-5 fw-bold lh-1 mb-3 text-wrap-balance">{{title}}</h1>{{/if}}
+              {{#if dateText}}<p class="text-body-secondary mb-0"><i class="bi bi-calendar3 me-2" aria-hidden="true"></i><time datetime="{{isoDate}}">{{dateText}}</time></p>{{/if}}
+            </header>
+
+            <section class="d-grid gap-3">
+            {{{contentHtml}}}
+            </section>
+
+          </div>
+        </div>
+
+        {{#if hasLinks}}
+          <div class="card border-0 shadow-sm overflow-hidden mb-3">
+              <div class="card-body">
+                <h2 id="links" class="h4 mb-3"><i class="bi bi-link-45deg me-2" aria-hidden="true"></i>Links</h2>
+              </div>
+              <ul class="list-group list-group-flush">
+                {{#each links}}
+                  <li class="list-group-item">
+                    <a class="text-decoration-none my-2" href="{{href}}">
+                      <span class="fw-semibold text-secondary"><i class="bi bi-link text-warning"></i> {{text}}</span>
+                      <small class="d-block text-body-secondary fw-lighter mt-2">{{href}}</small>
+                    </a>
+                  </li>
+                {{/each}}
+              </ul>
+          </div>
+        {{/if}}
+
+        {{#if hasArtwork}}
+          <div class="card border-0 shadow-sm overflow-hidden mb-3">
+              <div class="card-body">
+                <h2 class="h5 mb-3"><i class="bi bi-palette me-2" aria-hidden="true"></i>Artwork</h2>
+              </div>
+              <ul class="list-group list-group-flush">
+                {{#each artworkItems}}
+                <li class="list-group-item">
+                  <a class="text-decoration-none" href="{{url}}"><i class="bi bi-image text-secondary me-2" aria-hidden="true"></i><small class="text-secondary">{{url}}</small></a>
+                </li>
+                {{/each}}
+              </ul>
+          </div>
+        {{/if}}
+
+      </div>
+    </article>
+  </main>
+  {{{bodyScript}}}
+</body>
+</html>

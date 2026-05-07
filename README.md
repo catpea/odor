@@ -4,13 +4,13 @@ XML Driven Static blog generator with parallel encoding, incremental builds, ato
 ---
 
 ## Start Server
-odor3-server build.xml
+odor-server build.xml
 
 ## Create a New Post
-odor3-new build.xml "Hello XML!"
+odor-new build.xml "Hello XML!"
 
 ## Build
-odor3-build build.xml
+odor-build build.xml
 
 ## Debug
-odor3-build build.xml --force poem-2255
+odor-build build.xml --force poem-2255

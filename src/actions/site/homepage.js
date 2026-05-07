@@ -69,6 +69,10 @@ export async function handle({ ctx, store, signal }) {
   const postsPerPage = Number(profile.pagerizer?.pp ?? 12);
   const showHeader   = String(profile.header?.show) === 'true';
   const vars         = { ...profile, profile: profile.profile };
+  const templates = store.get('templates');
+
+  const localPagerItemTmpl = templates ? compile(templates.homePagerItem) : pagerItemTemplate;
+  const localPageTmpl      = templates ? compile(templates.homePage)      : pageTemplate;
 
   const validPosts        = allPosts.filter(p => p.valid);
   const sortedNewestFirst = [...validPosts].sort((a, b) => new Date(b.postData.date) - new Date(a.postData.date));
@@ -83,7 +87,7 @@ export async function handle({ ctx, store, signal }) {
   const pagerHtml = totalPages > 1
     ? `      <nav aria-label="Archive pages">
         <ul class="pagination justify-content-center flex-wrap gap-1 mb-0">
-${homePagerItems.map(item => pagerItemTemplate(item)).join('\n')}
+${homePagerItems.map(item => localPagerItemTmpl(item)).join('\n')}
         </ul>
       </nav>`
     : '';
@@ -91,19 +95,19 @@ ${homePagerItems.map(item => pagerItemTemplate(item)).join('\n')}
   const tmplCtx = {
     title:       profile.title,
     headAssets:  bootstrapHeadAssets(),
-    favicon:     faviconLink(profile.favicon),
+    favicon:     faviconLink(profile.favicon, templates),
     bodyScript:  bootstrapBodyScript(),
     showHeader,
     recentCount: latestPosts.length,
     totalCount:  validPosts.length,
     recentLabel: latestPosts.length === 1 ? 'post' : 'posts',
     totalLabel:  validPosts.length   === 1 ? 'entry' : 'entries',
-    postsHtml:   latestPosts.map(renderPostCard).join('\n'),
+    postsHtml:   latestPosts.map(p => renderPostCard(p, templates)).join('\n'),
     hasPager:    totalPages > 1,
     pagerHtml,
   };
 
-  await atomicWriteFile(ctx, path.join(destDir, 'index.html'), pageTemplate(tmplCtx));
+  await atomicWriteFile(ctx, path.join(destDir, 'index.html'), localPageTmpl(tmplCtx));
   console.log(`  [homepage] Generated index.html with ${latestPosts.length} latest posts`);
   return { success: true, posts: latestPosts.length };
 }

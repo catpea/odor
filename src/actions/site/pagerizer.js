@@ -64,7 +64,7 @@ const pageTemplate = compile(`\
 </body>
 </html>`);
 
-function buildPagerNav(pager, totalPages) {
+function buildPagerNav(pager, totalPages, itemTmpl) {
   const homeLink = `          <li class="page-item"><a class="page-link" href="index.html"><i class="bi bi-house me-1" aria-hidden="true"></i>Home</a></li>`;
   if (totalPages <= 1) {
     return `      <nav aria-label="Archive pages">
@@ -73,7 +73,7 @@ ${homeLink}
         </ul>
       </nav>`;
   }
-  const items = pager.map(p => pagerItemTemplate({ ...p, notCurrent: !p.ariaCurrent })).join('\n          ');
+  const items = pager.map(p => itemTmpl({ ...p, notCurrent: !p.ariaCurrent })).join('\n          ');
   return `      <nav aria-label="Archive pages">
         <ul class="pagination justify-content-center flex-wrap gap-1 mb-0">
 ${homeLink}
@@ -91,6 +91,10 @@ export async function handle({ ctx, store, signal }) {
   const allPosts     = [...rendered, ...cached];
   const postsPerPage = Number(profile.pagerizer?.pp ?? 24);
   const vars         = { ...profile, profile: profile.profile };
+  const templates = store.get('templates');
+
+  const localPagerItemTmpl = templates ? compile(templates.archivePagerItem) : pagerItemTemplate;
+  const localPageTmpl      = templates ? compile(templates.archivePage)      : pageTemplate;
 
   const validPosts  = allPosts.filter(p => p.valid);
   const sortedPosts = [...validPosts].sort((a, b) => new Date(b.postData.date) - new Date(a.postData.date));
@@ -119,17 +123,17 @@ export async function handle({ ctx, store, signal }) {
     const tmplCtx = {
       title:      profile.title,
       headAssets: bootstrapHeadAssets(),
-      favicon:    faviconLink(profile.favicon),
+      favicon:    faviconLink(profile.favicon, templates),
       bodyScript: bootstrapBodyScript(),
       pageNumber,
       totalPages,
-      postsHtml:  chunkPosts.map(renderPostCard).join('\n'),
+      postsHtml:  chunkPosts.map(p => renderPostCard(p, templates)).join('\n'),
       newerNav,
       olderNav,
-      pagerHtml:  buildPagerNav(buildPager(pageNumber, totalPages), totalPages),
+      pagerHtml:  buildPagerNav(buildPager(pageNumber, totalPages), totalPages, localPagerItemTmpl),
     };
 
-    await atomicWriteFile(ctx, `${destDir}/page-${pageNumber}.html`, pageTemplate(tmplCtx));
+    await atomicWriteFile(ctx, `${destDir}/page-${pageNumber}.html`, localPageTmpl(tmplCtx));
   }
 
   console.log(`  [pagerizer] Generated ${chunks.length} archive page(s)`);

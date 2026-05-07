@@ -16,7 +16,8 @@ export async function handle({ ctx, store, signal }) {
   signal.throwIfAborted();
 
   const profile = ctx.context;
-  const dryRun = store.get('build.dryRun') ?? false;
+  const dryRun     = store.get('build.dryRun')     ?? false;
+  const forceAll   = store.get('build.forceAll')   ?? false;
   const forcePosts = store.get('build.forcePosts') ?? [];
 
   const vars = { ...profile, profile: profile.profile };
@@ -26,7 +27,10 @@ export async function handle({ ctx, store, signal }) {
   const loadedManifest = await loadManifest(manifestPath);
   const configHash = computeConfigHash(profile);
 
-  if (loadedManifest.configHash && loadedManifest.configHash !== configHash) {
+  if (forceAll) {
+    console.log('--force-all: full rebuild');
+    loadedManifest.posts = {};
+  } else if (loadedManifest.configHash && loadedManifest.configHash !== configHash) {
     console.log('Profile changed - full rebuild');
     loadedManifest.posts = {};
   }

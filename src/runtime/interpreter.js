@@ -34,6 +34,7 @@ import * as processAudio  from '../actions/media/process-audio.js';
 import * as processCover  from '../actions/media/process-cover.js';
 import * as copyFiles     from '../actions/files/copy-files.js';
 import * as useTheme      from '../actions/files/use-theme.js';
+import * as useTemplates  from '../actions/files/use-templates.js';
 import * as writeManifest from '../actions/files/write-manifest.js';
 import * as homepage      from '../actions/site/homepage.js';
 import * as pagerizer     from '../actions/site/pagerizer.js';
@@ -47,7 +48,7 @@ const ALL_ACTIONS = [
   scanPosts, emitPosts, skipUnchanged, analyzePost,
   processText, verifyPost, collectPost,
   processAudio, processCover,
-  copyFiles, useTheme, writeManifest,
+  copyFiles, useTheme, useTemplates, writeManifest,
   homepage, pagerizer, rssFeed, playlist,
   agentTask,
   emitEvents,

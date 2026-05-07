@@ -15,6 +15,9 @@
 <Variable name="theme.src"  value="themes/plain"/>
 <Variable name="theme.dest" value="dist/{profile}/docs"/>
 
+<!-- Templates -->
+<Variable name="template.src" value="templates/basic"/>
+
 <!-- Respect existing outputs (skip re-encoding if file already exists) -->
 <Variable name="respectExisting.cover" value="true"/>
 <Variable name="respectExisting.audio" value="true"/>
